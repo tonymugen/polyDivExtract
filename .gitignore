@@ -1,1 +1,4 @@
 .ycm_*
+*.o
+test.cpp
+test

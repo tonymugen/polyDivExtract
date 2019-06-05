@@ -27,4 +27,142 @@
  *
  */
 
+#include <string>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
+#include <system_error>
+
+#include "parseAXT.hpp"
+
+using std::fstream;
+using std::ofstream;
+using std::stringstream;
+using std::string;
+using std::vector;
+using std::endl;
+using std::flush;
+using std::system_error;
+using std::ios;
+using std::bad_alloc;
+
+using namespace BayesicSpace;
+
+ParseAXT::ParseAXT(const string &fileName) : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""} {
+	if( axtFile_.is_open() ){
+		axtFile_.close();
+	}
+
+	try {
+		axtFile_.open(fileName.c_str(), ios::in);
+	} catch(system_error &error) {
+		string message = "ERROR: cannot open file " + fileName + " to read: " + error.code().message();
+		throw message;
+	}
+
+}
+
+string ParseAXT::getMetaData(){
+	getNextRecord_();
+	stringstream outLine;
+
+	outLine << chrID_ + " ";
+	outLine << sameChr_;
+	outLine << " ";
+	outLine << primaryStart_;
+	outLine << " ";
+	outLine << primaryEnd_;
+	outLine << " ";
+	outLine << alignedStart_;
+	outLine << " ";
+	outLine << alignedEnd_;
+
+	return outLine.str();
+}
+
+void ParseAXT::getNextRecord_(){
+	string curLine("");
+	while(axtFile_){
+		getline(axtFile_, curLine);
+		if (curLine[0] == '#') {
+			continue;
+		} else if (curLine == "") {
+			continue;
+		} else {
+			break;
+		}
+	}
+	if (curLine == ""){
+		throw string("End of file");
+	}
+
+	// we have a non-empty line, presumably the meta-data header for .axt
+	stringstream metaSS(curLine);
+	vector<string> fields;
+	string value;
+	while(metaSS >> value){ // makes sure we don't have anything extra at the end
+		fields.push_back(value);
+	}
+	if (fields.size() != 9) {
+		throw string("Wrong number of fields in .axt metada");
+	}
+	if ( (fields[1][0] != 'c') || (fields[1][1] != 'h') || (fields[1][2] != 'r') ) { // do not have "chr" at the beginning of the chromosome field
+		string wrongThing = "Wrong chromosome field: " + fields[1];
+		throw wrongThing;
+	}
+	string tmpChrID = chrID_;
+	chrID_ = fields[1];
+
+	uint64_t tmpStart = primaryStart_;
+	primaryStart_ = strtoul(fields[2].c_str(), NULL, 0);
+	if (primaryStart_ == 0) {
+		string wrongThing = "Wrong primary sequence start: " + fields[2];
+		throw wrongThing;
+	} else if ( (primaryStart_ <= tmpStart) && (tmpChrID == chrID_) ) { // the records should be in order of increasing primary sequence position, unless there is a chromosome switch
+		string wrongThing = "Primary start of the current record (" + fields[2] + ") not greater than the perivous record";
+		throw wrongThing;
+	}
+	primaryEnd_ = strtoul(fields[3].c_str(), NULL, 0);
+	if (primaryEnd_ == 0) {
+		string wrongThing = "Wrong primary sequence end: " + fields[3];
+		throw wrongThing;
+	} else if (primaryEnd_ <= primaryStart_) {
+		stringstream wrongThing;
+		wrongThing << "Position of the end of primary sequence (";
+		wrongThing << fields[3];
+		wrongThing << ") not greater than the position of the start: ";
+		wrongThing << primaryStart_;
+		wrongThing << " (if the last number is huge, the original number was likely negative)";
+		throw wrongThing.str();
+	}
+
+	if ( (fields[4][0] != 'c') || (fields[4][1] != 'h') || (fields[4][2] != 'r') ) { // do not have "chr" at the beginning of the chromosome field
+		string wrongThing = "Wrong aligned chromosome field: " + fields[4];
+		throw wrongThing;
+	}
+	sameChr_ = (fields[4] == fields[1] ? 1 : 0);
+
+	alignedStart_ = strtoul(fields[5].c_str(), NULL, 0);
+	if (alignedStart_ == 0) {
+		string wrongThing = "Wrong primary sequence start: " + fields[5];
+		throw wrongThing;
+	}
+	alignedEnd_ = strtoul(fields[6].c_str(), NULL, 0);
+	if (alignedEnd_ == 0) {
+		string wrongThing = "Wrong primary sequence end: " + fields[6];
+		throw wrongThing;
+	}
+
+	// now just read the sequences
+	if(axtFile_.eof()){
+		throw string("End of file reached before primary sequence read");
+	}
+	getline(axtFile_, primarySeq_);
+
+	if(axtFile_.eof()){
+		throw string("End of file reached before aligned sequence read");
+	}
+	getline(axtFile_, alignSeq_);
+}
 

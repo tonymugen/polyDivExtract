@@ -46,7 +46,7 @@ namespace BayesicSpace {
 	class ParseAXT {
 		public:
 			/** \brief Default constructor */
-			ParseAXT(){ axtFile_.exceptions(fstream::badbit); };
+			ParseAXT() : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""} { axtFile_.exceptions(fstream::badbit); };
 			/** \brief File name constructor
 			 *
 			 * \param[in] fileName file name
@@ -64,16 +64,38 @@ namespace BayesicSpace {
 			ParseAXT &operator=(const ParseAXT &in) = delete;
 			/// Move assignment
 			ParseAXT &operator=(ParseAXT &&in) = delete;
+
+			/** \brief Record meta data 
+			 *
+			 * Returns a string with space-delimited metadata for the curent record:
+			 *
+			 * - primary chromosome
+			 * - is the aligned chromosome the same (0/1)?
+			 * - primary start
+			 * - primary end
+			 * - aligned start
+			 * - aligned end
+			 *
+			 *   \return string with metadata
+			 */
+			string getMetaData();
 		private:
 			/// The file stream
 			fstream axtFile_;
 			
-			/// Current record's chromosome
+			// variables for the current record
+			/// Primary chromosome
 			string chrID_;
-			/// Is the conuterpart chromosome the same for the current record?
-			bool sameChr_;
-			/// Current record's start position
-			uint64_t startPos_;
+			/// Is the aligned chromosome the same (1 for yes, 0 for no)?
+			uint16_t sameChr_;
+			/// Primary start position
+			uint64_t primaryStart_;
+			/// Primary end position
+			uint64_t primaryEnd_;
+			/// Aligned start posistion
+			uint64_t alignedStart_;
+			/// Aligned end position
+			uint64_t alignedEnd_;
 			/// Current record's primary sequence
 			string primarySeq_;
 			/// Current record's aligning sequence
