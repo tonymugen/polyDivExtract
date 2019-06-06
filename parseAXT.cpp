@@ -34,6 +34,8 @@
 #include <cstdlib>
 #include <system_error>
 
+#include <iostream>
+
 #include "parseAXT.hpp"
 
 using std::fstream;
@@ -61,10 +63,10 @@ ParseAXT::ParseAXT(const string &fileName) : chrID_{""}, sameChr_{0}, primarySta
 		throw message;
 	}
 
+	getNextRecord_();
 }
 
 string ParseAXT::getMetaData(){
-	getNextRecord_();
 	stringstream outLine;
 
 	outLine << chrID_ + " ";
@@ -79,6 +81,44 @@ string ParseAXT::getMetaData(){
 	outLine << alignedEnd_;
 
 	return outLine.str();
+}
+
+void ParseAXT::getSiteStates(const string &chromosome, const uint64_t &position, char &primaryState, char &alignedState, uint16_t &sameChromosome){
+	bool noneFound = true;
+	while(axtFile_){
+		if (chrID_ != chromosome) {
+			getNextRecord_();
+			continue;
+		}
+		if (primaryEnd_ >= position) {
+			uint64_t truePos = primaryStart_;                   // this is the genomic position (with gaps eliminated)
+			for (size_t i = 0; i < primarySeq_.size() ; i++) {  // string length equality already checked in getNextRecord_()
+				if (primarySeq_[i] == '-') {
+					continue;
+				}
+				if (truePos == position) {
+					primaryState   = primarySeq_[i];
+					alignedState   = alignSeq_[i];   // may be a gap, that can be checked in post-processing
+					sameChromosome = sameChr_;
+					noneFound      = false;
+					break;
+				}
+			truePos++;
+			}
+			break;
+		} else {
+			getNextRecord_();
+		}
+
+	}
+	if (noneFound) {
+		stringstream wrongThing;
+		wrongThing << "Reached the end of file before finding a record for postition ";
+		wrongThing << position;
+		wrongThing << " on chromosome ";
+		wrongThing << chromosome;
+		throw wrongThing.str();
+	}
 }
 
 void ParseAXT::getNextRecord_(){
@@ -164,5 +204,9 @@ void ParseAXT::getNextRecord_(){
 		throw string("End of file reached before aligned sequence read");
 	}
 	getline(axtFile_, alignSeq_);
+	if ( primarySeq_.size() != alignSeq_.size() ) {
+		string wrongThing = "The sequence strings for record #" + fields[0] + " are not equal length";
+		throw wrongThing;
+	}
 }
 

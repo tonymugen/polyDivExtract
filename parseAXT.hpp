@@ -49,6 +49,8 @@ namespace BayesicSpace {
 			ParseAXT() : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""} { axtFile_.exceptions(fstream::badbit); };
 			/** \brief File name constructor
 			 *
+			 * Initializes the file stream and loads first AXT record.
+			 *
 			 * \param[in] fileName file name
 			 */
 			ParseAXT(const string &fileName);
@@ -65,7 +67,7 @@ namespace BayesicSpace {
 			/// Move assignment
 			ParseAXT &operator=(ParseAXT &&in) = delete;
 
-			/** \brief Record meta data 
+			/** \brief Record meta data
 			 *
 			 * Returns a string with space-delimited metadata for the curent record:
 			 *
@@ -79,10 +81,32 @@ namespace BayesicSpace {
 			 *   \return string with metadata
 			 */
 			string getMetaData();
+			/** \brief Get primary sequence
+			 *
+			 * \return string with the primary sequence
+			 */
+			string getPrimarySeq() {return primarySeq_; };
+			/** \brief Get aligned sequence
+			 *
+			 * \return string with the aligned sequence
+			 */
+			string getAlignedSeq() {return alignSeq_; };
+			/** \brief Extracts the nucleotides at a given position
+			 *
+			 * The query position references the primary sequence
+			 *
+			 * \param[in] chromosome primary chromosome
+			 * \param[in] position site position in the primary sequence
+			 * \param[out] primaryState the primary nucleotide at the query position
+			 * \param[out] alignedState the aligned nucleotide at the query position
+			 * \param[out] sameChromosome is the aligned sequence on the same chromosome as primary? (0: no, 1: yes)
+			 *
+			 */
+			void getSiteStates(const string &chromosome, const uint64_t &position, char &primaryState, char &alignedState, uint16_t &sameChromosome);
 		private:
 			/// The file stream
 			fstream axtFile_;
-			
+
 			// variables for the current record
 			/// Primary chromosome
 			string chrID_;
@@ -100,9 +124,10 @@ namespace BayesicSpace {
 			string primarySeq_;
 			/// Current record's aligning sequence
 			string alignSeq_;
-			
+
 			/** \brief Get next record */
 			void getNextRecord_();
 	};
 }
 #endif /* parseAXT_hpp */
+
