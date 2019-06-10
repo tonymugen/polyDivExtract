@@ -116,6 +116,28 @@ namespace BayesicSpace {
 			 *
 			 */
 			void getDivergedSites(const string &chromName, const uint64_t &start, const uint64_t &end, vector<string> &sites, uint64_t &length);
+			/** \brief Get list of divergent sites from a vector of positions
+			 *
+			 * Get a list of divergent sites from a vector of positions. The provided vector of cromosome names must be the same length as the vector of genome positions.
+			 * The chromosome names must be arranged in contiguous blocks, with the same order as in the target .axt file. This is to speed up file traversal.
+			 * Sites that are not covered or align to gaps are not counted in computing the overall length.
+			 * The vector of sites is appended by the function, so any exsiting information will be preserved.
+			 * The site description is in a tab-delimited string with the following fields:
+			 *
+			 * - chromosome name
+			 * - position
+			 * - primary nucleotide
+			 * - aligned nucleotide
+			 * - whether the aligned nucleotide is on the same chromosome
+			 * - whether both nucleotides are in upper case (indicating high quality base calls)
+			 *
+			 * \param[in] chromNames vector of chromosome names
+			 * \param[in] positions vector of query site genome positions
+			 * \param[out] sites vector of divergent site information (appended after execution)
+			 * \param[out] length length not counting sites that are missing or align to gaps
+			 *
+			 */
+			void getDivergedSites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites, uint64_t &length);
 		private:
 			/// The file stream
 			fstream axtFile_;

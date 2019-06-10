@@ -123,6 +123,45 @@ void ParseAXT::getDivergedSites(const string &chromName, const uint64_t &start, 
 	}
 }
 
+void ParseAXT::getDivergedSites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites, uint64_t &length){
+	if (positions.size() != chromNames.size()) {
+		stringstream wrongThing;
+		wrongThing << "ERROR: the vector of chromosome names (size = ";
+		wrongThing << chromNames.size();
+		wrongThing << ") not the same size as the vector of positions (size = ";
+		wrongThing << positions.size();
+		wrongThing << ") in getDivergedSites()";
+		throw wrongThing.str();
+	}
+	length = 0;
+	for (uint64_t iPos = 0; iPos < positions.size(); iPos++) {
+		char primary;
+		char aligned;
+		uint16_t same;
+		getSiteStates_(chromNames[iPos], positions[iPos], primary, aligned, same);
+		if ( (primary == '-') || (aligned == '-') ) {  // gaps present; ignore
+			continue;
+		}
+		if (primary == aligned) {
+			length++;
+		} else if ( toupper(primary) == toupper(aligned) ) {  // sometimes there are lower-case bases (low-quality I think)
+			length++;
+		} else {  // the sites are divergent
+			stringstream siteInfo;
+			siteInfo << chromNames[iPos] << "\t";
+			siteInfo << positions[iPos] << "\t";
+			siteInfo << primary << "\t" << aligned << "\t";
+			siteInfo << same << "\t";
+			if ( isupper(primary) && isupper(aligned) ) {
+				siteInfo << "1";
+			} else {
+				siteInfo << "0";
+			}
+			sites.push_back( siteInfo.str() );
+		}
+	}
+}
+
 void ParseAXT::getNextRecord_(){
 	string curLine("");
 	while(axtFile_){
