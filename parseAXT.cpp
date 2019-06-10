@@ -32,6 +32,7 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <cctype>
 #include <system_error>
 
 #include <iostream>
@@ -83,41 +84,42 @@ string ParseAXT::getMetaData(){
 	return outLine.str();
 }
 
-void ParseAXT::getSiteStates(const string &chromosome, const uint64_t &position, char &primaryState, char &alignedState, uint16_t &sameChromosome){
-	bool noneFound = true;
-	while(axtFile_){
-		if (chrID_ != chromosome) {
-			getNextRecord_();
+void ParseAXT::getDivergedSites(const string &chromName, const uint64_t &start, const uint64_t &end, vector<string> &sites, uint64_t &length){
+	if (start >= end) {
+		stringstream wrongThing;
+		wrongThing << "ERROR: start position (";
+		wrongThing << start;
+		wrongThing << ") must come before the end postion (";
+		wrongThing << end;
+		wrongThing << ") in getDivergedSites()";
+		throw wrongThing.str();
+	}
+	length = 0;
+	for (uint64_t iSite = start; iSite <= end; iSite++) {
+		char primary;
+		char aligned;
+		uint16_t same;
+		getSiteStates_(chromName, iSite, primary, aligned, same);
+		if ( (primary == '-') || (aligned == '-') ) {  // gaps present; ignore
 			continue;
 		}
-		if (primaryEnd_ >= position) {
-			uint64_t truePos = primaryStart_;                   // this is the genomic position (with gaps eliminated)
-			for (size_t i = 0; i < primarySeq_.size() ; i++) {  // string length equality already checked in getNextRecord_()
-				if (primarySeq_[i] == '-') {
-					continue;
-				}
-				if (truePos == position) {
-					primaryState   = primarySeq_[i];
-					alignedState   = alignSeq_[i];   // may be a gap, that can be checked in post-processing
-					sameChromosome = sameChr_;
-					noneFound      = false;
-					break;
-				}
-			truePos++;
+		if (primary == aligned) {
+			length++;
+		} else if ( toupper(primary) == toupper(aligned) ) {  // sometimes there are lower-case bases (low-quality I think)
+			length++;
+		} else {  // the sites are divergent
+			stringstream siteInfo;
+			siteInfo << chromName << "\t";
+			siteInfo << iSite << "\t";
+			siteInfo << primary << "\t" << aligned << "\t";
+			siteInfo << same << "\t";
+			if ( isupper(primary) && isupper(aligned) ) {
+				siteInfo << "1";
+			} else {
+				siteInfo << "0";
 			}
-			break;
-		} else {
-			getNextRecord_();
+			sites.push_back( siteInfo.str() );
 		}
-
-	}
-	if (noneFound) {
-		stringstream wrongThing;
-		wrongThing << "Reached the end of file before finding a record for postition ";
-		wrongThing << position;
-		wrongThing << " on chromosome ";
-		wrongThing << chromosome;
-		throw wrongThing.str();
 	}
 }
 
@@ -207,6 +209,50 @@ void ParseAXT::getNextRecord_(){
 	if ( primarySeq_.size() != alignSeq_.size() ) {
 		string wrongThing = "The sequence strings for record #" + fields[0] + " are not equal length";
 		throw wrongThing;
+	}
+}
+
+void ParseAXT::getSiteStates_(const string &chromosome, const uint64_t &position, char &primaryState, char &alignedState, uint16_t &sameChromosome){
+	bool noneFound = true;
+	while(axtFile_){
+		if (chrID_ != chromosome) {
+			getNextRecord_();
+			continue;
+		}
+		if (primaryEnd_ >= position) {
+			if (position < primaryStart_) {  // our position may fall into a gap between alignment chunks; will returns values that will be filtered downstream
+				primaryState   = '-';
+				alignedState   = '-';
+				sameChromosome = 0;
+				noneFound      = false;
+			}
+			uint64_t truePos = primaryStart_;                   // this is the genomic position (with gaps eliminated)
+			for (size_t i = 0; i < primarySeq_.size() ; i++) {  // string length equality already checked in getNextRecord_()
+				if (primarySeq_[i] == '-') {
+					continue;
+				}
+				if (truePos == position) {
+					primaryState   = primarySeq_[i];
+					alignedState   = alignSeq_[i];   // may be a gap, that can be checked in post-processing
+					sameChromosome = sameChr_;
+					noneFound      = false;
+					break;
+				}
+				truePos++;
+			}
+			break;
+		} else {
+			getNextRecord_();
+		}
+
+	}
+	if (noneFound) {
+		stringstream wrongThing;
+		wrongThing << "Reached the end of file before finding a record for postition ";
+		wrongThing << position;
+		wrongThing << " on chromosome ";
+		wrongThing << chromosome;
+		throw wrongThing.str();
 	}
 }
 

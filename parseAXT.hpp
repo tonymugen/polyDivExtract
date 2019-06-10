@@ -32,9 +32,11 @@
 
 #include <fstream>
 #include <string>
+#include <vector>
 
 using std::fstream;
 using std::string;
+using std::vector;
 
 namespace BayesicSpace {
 
@@ -91,18 +93,29 @@ namespace BayesicSpace {
 			 * \return string with the aligned sequence
 			 */
 			string getAlignedSeq() {return alignSeq_; };
-			/** \brief Extracts the nucleotides at a given position
+			/** \brief Get list of divergent sites from a range
 			 *
-			 * The query position references the primary sequence
+			 * Get a list of divergent sites from a range of positions on a chromosome. Sites that are not covered or align to gaps are not counted in computing the overall length.
+			 * The vector of sites is appended by the function, so any exsiting information will be preserved.
+			 * The site description is in a tab-delimited string with the following fields:
 			 *
-			 * \param[in] chromosome primary chromosome
-			 * \param[in] position site position in the primary sequence
-			 * \param[out] primaryState the primary nucleotide at the query position
-			 * \param[out] alignedState the aligned nucleotide at the query position
-			 * \param[out] sameChromosome is the aligned sequence on the same chromosome as primary? (0: no, 1: yes)
+			 * - chromosome name
+			 * - position
+			 * - primary nucleotide
+			 * - aligned nucleotide
+			 * - whether the aligned nucleotide is on the same chromosome
+			 * - whether both nucleotides are in upper case (indicating high quality base calls)
+			 *
+			 * _NOTE_: The range must be confined to a single chromosome.
+			 *
+			 * \param[in] chromName chromosome name
+			 * \param[in] start start position of the target range
+			 * \param[in] end end position of the target range
+			 * \param[out] sites vector of divergent site information (appended after execution)
+			 * \param[out] length length not counting sites that are missing or align to gaps
 			 *
 			 */
-			void getSiteStates(const string &chromosome, const uint64_t &position, char &primaryState, char &alignedState, uint16_t &sameChromosome);
+			void getDivergedSites(const string &chromName, const uint64_t &start, const uint64_t &end, vector<string> &sites, uint64_t &length);
 		private:
 			/// The file stream
 			fstream axtFile_;
@@ -127,6 +140,18 @@ namespace BayesicSpace {
 
 			/** \brief Get next record */
 			void getNextRecord_();
+			/** \brief Extracts the nucleotides at a given position
+			 *
+			 * The query position references the primary sequence
+			 *
+			 * \param[in] chromosome primary chromosome
+			 * \param[in] position site position in the primary sequence
+			 * \param[out] primaryState the primary nucleotide at the query position
+			 * \param[out] alignedState the aligned nucleotide at the query position
+			 * \param[out] sameChromosome is the aligned sequence on the same chromosome as primary? (0: no, 1: yes)
+			 *
+			 */
+			void getSiteStates_(const string &chromosome, const uint64_t &position, char &primaryState, char &alignedState, uint16_t &sameChromosome);
 	};
 }
 #endif /* parseAXT_hpp */
