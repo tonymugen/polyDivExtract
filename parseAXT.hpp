@@ -33,10 +33,12 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 using std::fstream;
 using std::string;
 using std::vector;
+using std::unordered_map;
 
 namespace BayesicSpace {
 
@@ -48,7 +50,7 @@ namespace BayesicSpace {
 	class ParseAXT {
 		public:
 			/** \brief Default constructor */
-			ParseAXT() : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""} { axtFile_.exceptions(fstream::badbit); };
+			ParseAXT() : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""}, foundChr_{""} { axtFile_.exceptions(fstream::badbit); };
 			/** \brief File name constructor
 			 *
 			 * Initializes the file stream and loads first AXT record.
@@ -134,10 +136,10 @@ namespace BayesicSpace {
 			 * \param[in] chromNames vector of chromosome names
 			 * \param[in] positions vector of query site genome positions
 			 * \param[out] sites vector of divergent site information (appended after execution)
-			 * \param[out] length length not counting sites that are missing or align to gaps
+			 * \param[out] lengths lengths, one per chromosome, not counting sites that are missing or align to gaps
 			 *
 			 */
-			void getDivergedSites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites, uint64_t &length);
+			void getDivergedSites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites, unordered_map<string, uint64_t> &lengths);
 		private:
 			/// The file stream
 			fstream axtFile_;
@@ -159,7 +161,8 @@ namespace BayesicSpace {
 			string primarySeq_;
 			/// Current record's aligning sequence
 			string alignSeq_;
-
+			/// Last completely examined chromosome
+			string foundChr_;
 			/** \brief Get next record */
 			void getNextRecord_();
 			/** \brief Extracts the nucleotides at a given position

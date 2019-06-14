@@ -29,6 +29,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
@@ -44,15 +45,15 @@ using std::ofstream;
 using std::stringstream;
 using std::string;
 using std::vector;
+using std::unordered_map;
 using std::endl;
-using std::flush;
 using std::system_error;
 using std::ios;
 using std::bad_alloc;
 
 using namespace BayesicSpace;
 
-ParseAXT::ParseAXT(const string &fileName) : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""} {
+ParseAXT::ParseAXT(const string &fileName) : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""}, foundChr_{""} {
 	if( axtFile_.is_open() ){
 		axtFile_.close();
 	}
@@ -96,11 +97,21 @@ void ParseAXT::getDivergedSites(const string &chromName, const uint64_t &start, 
 	}
 	length = 0;
 	for (uint64_t iSite = start; iSite <= end; iSite++) {
+		// if the current chromosome has already been explored to the end, no need to bother looking
+		if (chromName == foundChr_) {
+			return;
+		}
 		char primary;
 		char aligned;
 		uint16_t same;
-		getSiteStates_(chromName, iSite, primary, aligned, same);
+		getSiteStates_(chromName, iSite, primary, aligned, same);  // will search .axt records
 		if ( (primary == '-') || (aligned == '-') ) {  // gaps present; ignore
+			continue;
+		}
+		if ( (primary == 'n') || (aligned == 'n') ) {  // unkown nucleotide present; ignore
+			continue;
+		}
+		if ( (primary == 'N') || (aligned == 'N') ) {  // unkown nucleotide present; ignore
 			continue;
 		}
 		if (primary == aligned) {
@@ -119,11 +130,12 @@ void ParseAXT::getDivergedSites(const string &chromName, const uint64_t &start, 
 				siteInfo << "0";
 			}
 			sites.push_back( siteInfo.str() );
+			length++;
 		}
 	}
 }
 
-void ParseAXT::getDivergedSites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites, uint64_t &length){
+void ParseAXT::getDivergedSites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites, unordered_map<string, uint64_t> &lengths){
 	if (positions.size() != chromNames.size()) {
 		stringstream wrongThing;
 		wrongThing << "ERROR: the vector of chromosome names (size = ";
@@ -133,19 +145,36 @@ void ParseAXT::getDivergedSites(const vector<string> &chromNames, const vector<u
 		wrongThing << ") in getDivergedSites()";
 		throw wrongThing.str();
 	}
-	length = 0;
 	for (uint64_t iPos = 0; iPos < positions.size(); iPos++) {
+		// if the current chromosome has already been explored to the end, skip (don't return b/c other chromosomes still may be on the list)
+		if (chromNames[iPos] == foundChr_) {
+			continue;
+		}
 		char primary;
 		char aligned;
 		uint16_t same;
-		getSiteStates_(chromNames[iPos], positions[iPos], primary, aligned, same);
+		getSiteStates_(chromNames[iPos], positions[iPos], primary, aligned, same); // will search the .axt records
 		if ( (primary == '-') || (aligned == '-') ) {  // gaps present; ignore
 			continue;
 		}
+		if ( (primary == 'n') || (aligned == 'n') ) {  // unkown nucleotide present; ignore
+			continue;
+		}
+		if ( (primary == 'N') || (aligned == 'N') ) {  // unkown nucleotide present; ignore
+			continue;
+		}
 		if (primary == aligned) {
-			length++;
+			uint64_t tmpSz = lengths.size(); // save the pre-insertion size
+			lengths[ chromNames[iPos] ]++;
+			if (lengths.size() > tmpSz) {    // if a new element is added, make sure the count starts at 1
+				lengths[ chromNames[iPos] ] = 1;
+			}
 		} else if ( toupper(primary) == toupper(aligned) ) {  // sometimes there are lower-case bases (low-quality I think)
-			length++;
+			uint64_t tmpSz = lengths.size(); // save the pre-insertion size
+			lengths[ chromNames[iPos] ]++;
+			if (lengths.size() > tmpSz) {    // if a new element is added, make sure the count starts at 1
+				lengths[ chromNames[iPos] ] = 1;
+			}
 		} else {  // the sites are divergent
 			stringstream siteInfo;
 			siteInfo << chromNames[iPos] << "\t";
@@ -158,14 +187,19 @@ void ParseAXT::getDivergedSites(const vector<string> &chromNames, const vector<u
 				siteInfo << "0";
 			}
 			sites.push_back( siteInfo.str() );
+
+			uint64_t tmpSz = lengths.size(); // save the pre-insertion size
+			lengths[ chromNames[iPos] ]++;
+			if (lengths.size() > tmpSz) {    // if a new element is added, make sure the count starts at 1
+				lengths[ chromNames[iPos] ] = 1;
+			}
 		}
 	}
 }
 
 void ParseAXT::getNextRecord_(){
 	string curLine("");
-	while(axtFile_){
-		getline(axtFile_, curLine);
+	while(getline(axtFile_, curLine)){
 		if (curLine[0] == '#') {
 			continue;
 		} else if (curLine == "") {
@@ -208,7 +242,7 @@ void ParseAXT::getNextRecord_(){
 	if (primaryEnd_ == 0) {
 		string wrongThing = "Wrong primary sequence end: " + fields[3];
 		throw wrongThing;
-	} else if (primaryEnd_ <= primaryStart_) {
+	} else if (primaryEnd_ < primaryStart_) {  // strictly less because there are cases where only one nucleotide is in a record
 		stringstream wrongThing;
 		wrongThing << "Position of the end of primary sequence (";
 		wrongThing << fields[3];
@@ -253,17 +287,30 @@ void ParseAXT::getNextRecord_(){
 
 void ParseAXT::getSiteStates_(const string &chromosome, const uint64_t &position, char &primaryState, char &alignedState, uint16_t &sameChromosome){
 	bool noneFound = true;
+	bool correctChrFound = false;
 	while(axtFile_){
 		if (chrID_ != chromosome) {
-			getNextRecord_();
-			continue;
-		}
-		if (primaryEnd_ >= position) {
-			if (position < primaryStart_) {  // our position may fall into a gap between alignment chunks; will returns values that will be filtered downstream
+			if (correctChrFound) { // blew past the correct chromosome without finding the position (maybe not covered)
 				primaryState   = '-';
 				alignedState   = '-';
 				sameChromosome = 0;
 				noneFound      = false;
+				if (foundChr_ != chromosome) {
+					foundChr_ = chromosome;
+				}
+				return;
+			}
+			getNextRecord_();
+			continue;
+		}
+		correctChrFound = true;
+		if (primaryEnd_ >= position) {
+			if (position < primaryStart_) {  // our position may fall into a gap between alignment chunks; will return values that will be filtered downstream
+				primaryState   = '-';
+				alignedState   = '-';
+				sameChromosome = 0;
+				noneFound      = false;
+				return;
 			}
 			uint64_t truePos = primaryStart_;                   // this is the genomic position (with gaps eliminated)
 			for (size_t i = 0; i < primarySeq_.size() ; i++) {  // string length equality already checked in getNextRecord_()
@@ -275,7 +322,7 @@ void ParseAXT::getSiteStates_(const string &chromosome, const uint64_t &position
 					alignedState   = alignSeq_[i];   // may be a gap, that can be checked in post-processing
 					sameChromosome = sameChr_;
 					noneFound      = false;
-					break;
+					return;
 				}
 				truePos++;
 			}
