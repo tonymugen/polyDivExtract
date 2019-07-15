@@ -10,11 +10,11 @@ TSTOUT = test
 DIVSITES = divSites
 CXXFLAGS = -O3 -march=native -std=c++11
 
-all : $(TSTOUT) $(DIVSITES)
+all : $(DIVSITES)
 .PHONY : all
 
-$(TSTOUT) : test.cpp $(AXTOBJ)
-	$(CXX) test.cpp $(AXTOBJ) -o $(TSTOUT) $(CXXFLAGS)
+#$(TSTOUT) : test.cpp $(AXTOBJ)
+#	$(CXX) test.cpp $(AXTOBJ) -o $(TSTOUT) $(CXXFLAGS)
 
 $(DIVSITES) : divSites.cpp utilities.hpp $(AXTOBJ)
 	$(CXX) divSites.cpp $(AXTOBJ) -o $(DIVSITES) $(CXXFLAGS)
