@@ -140,6 +140,20 @@ namespace BayesicSpace {
 			 *
 			 */
 			void getDivergedSites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites, unordered_map<string, uint64_t> &lengths);
+			/** \brief Get the outgroup state for a position
+			 *
+			 * The aligned genome is assumed to belong to the outgroup species. The site description is in a three-letter (no delimitation) string with the following fields:
+			 *
+			 * - aligned (outgroup) nucleotide ("N" if not available)
+			 * - whether the aligned nucleotide is on the same chromosome
+			 * - whether the aligned nucleotide is in upper case (indicating high quality base calls)
+			 *
+			 * \param[in] chromName chromosome name
+			 * \param[in] position query site genome position
+			 * \param[out] site outgroup site information
+			 *
+			 */
+			void getOutgroupState(const string &chromName, const uint64_t &position, string &site);
 		private:
 			/// The file stream
 			fstream axtFile_;

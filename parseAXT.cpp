@@ -212,6 +212,38 @@ void ParseAXT::getDivergedSites(const vector<string> &chromNames, const vector<u
 	}
 }
 
+void ParseAXT::getOutgroupState(const string &chromName, const uint64_t &position, string &site){
+	if (chromName == foundChr_) { // this chromosome already completed; site unavailable
+		site = "N00";
+		return;
+	}
+	char primary;
+	char aligned;
+	uint16_t same;
+	getSiteStates_(chromName, position, primary, aligned, same); // will search the .axt records
+	if ( (aligned == '-') || (aligned == 'n') || (aligned == 'N') ) {
+		site = "N0";
+		if (same) {
+			site += "1";
+		} else {
+			site += "0";
+		}
+	} else {
+		site  = aligned;
+		if (isupper(aligned)) {
+			site += "1";
+		} else {
+			site += "0";
+		}
+
+		if (same) {
+			site += "1";
+		} else {
+			site += "0";
+		}
+	}
+}
+
 void ParseAXT::getNextRecord_(){
 	string curLine("");
 	while(getline(axtFile_, curLine)){

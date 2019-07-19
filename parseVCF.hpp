@@ -49,7 +49,7 @@ namespace BayesicSpace {
 	class ParseVCF {
 		public:
 			/** \brief Default constructor */
-			ParseVCF() : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, foundChr_{""} { vcfFile_.exceptions(fstream::badbit); };
+			ParseVCF() : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, numCalled_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, foundChr_{""}, fullRecord_{""} { vcfFile_.exceptions(fstream::badbit); };
 			/** \brief Constructor with file names
 			 *
 			 * Opens the VCF file and the corresponding .axt alignment file for ancestral state tracking.
@@ -84,10 +84,11 @@ namespace BayesicSpace {
 			 * - which nucleotide is ancestral ('r' for reference, 'a' alternative, 'u' unknown)
 			 * - derived allele count
 			 * - derived allele count (maximum likelihood)
-			 * - number of missing genotypes
 			 * - derived allele frequency
 			 * - derived allele frequencey (maximum likelihood)
+			 * - number of missing genotypes
 			 * - whether the outgroup nucleotide is on the same chromosome as the polymorphic site
+			 * - whether the outgroup nucleotide is good quality
 			 * - site quality score
 			 *
 			 *
@@ -114,10 +115,11 @@ namespace BayesicSpace {
 			 * - which nucleotide is ancestral ('r' for reference, 'a' alternative, 'u' unknown)
 			 * - derived allele count
 			 * - derived allele count (maximum likelihood)
-			 * - number of missing genotypes
 			 * - derived allele frequency
 			 * - derived allele frequencey (maximum likelihood)
+			 * - number of missing genotypes
 			 * - whether the outgroup nucleotide is on the same chromosome as the polymorphic site
+			 * - whether the outgroup nucleotide is good quality
 			 * - site quality score
 			 *
 			 * \param[in] chromNames vector of chromosome names
@@ -149,6 +151,8 @@ namespace BayesicSpace {
 			uint16_t sameChr_;
 			/// Number missing
 			uint32_t numMissing_;
+			/// Number called
+			uint32_t numCalled_;
 			/// Reference allele count
 			uint32_t refAC_;
 			/// Reference allele count (maximum likelihood)
@@ -163,13 +167,21 @@ namespace BayesicSpace {
 			string chrID_;
 			/// Last completely searched chromosome
 			string foundChr_;
+			/// The full VCF line (record)
+			string fullRecord_;
 
 			/// The file stream
 			fstream vcfFile_;
 			/// The corresponding .axt object
 			ParseAXT axtObj_;
-			/// Get next record
-			void getNextRecord_();
+
+			/// Parse current record
+			void parseCurrentRecord_();
+			/** Export current record
+			 *
+			 * \return string with the requisite site information
+			 */
+			string exportCurRecord_();
 	};
 }
 

@@ -50,7 +50,7 @@ using std::bad_alloc;
 using namespace BayesicSpace;
 
 
-ParseVCF::ParseVCF(const string &vcfFileName, const string &axtFileName) : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, foundChr_{""}{
+ParseVCF::ParseVCF(const string &vcfFileName, const string &axtFileName) : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, numCalled_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, foundChr_{""}, fullRecord_{""} {
 	if( vcfFile_.is_open() ){
 		vcfFile_.close();
 	}
@@ -63,37 +63,85 @@ ParseVCF::ParseVCF(const string &vcfFileName, const string &axtFileName) : varPo
 	}
 
 	axtObj_ = ParseAXT(axtFileName);
-	getNextRecord_();
-}
 
-void ParseVCF::getNextRecord_(){
-	string curLine("");
-	while(getline(vcfFile_, curLine)){
-		if (curLine[0] == '#') {
+	while(getline(vcfFile_, fullRecord_)){
+		if (fullRecord_[0] == '#') {
 			continue;
-		} else if (curLine == "") {
+		} else if (fullRecord_ == "") {
 			continue;
 		} else {
 			break;
 		}
 	}
-	if (curLine == ""){
-		throw string("End of file");
+	if (fullRecord_ == ""){
+		throw string("No non-empty non-comment lines in file ") + vcfFileName;
 	}
 
+}
+
+void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, const uint64_t &end, vector<string> &sites){
+	if (start >= end) {
+		stringstream wrongThing;
+		wrongThing << "ERROR: start position (";
+		wrongThing << start;
+		wrongThing << ") must come before the end postion (";
+		wrongThing << end;
+		wrongThing << ") in getPolySites()";
+		throw wrongThing.str();
+	}
+	if (chromName == foundChr_) {
+		return;
+	}
+	bool foundChrom = false; // keep track if the target chromosome was found in the search; needed to test if we looked though the whole thing without finding our site(s)
+	while(getline(vcfFile_, fullRecord_)){
+		if (fullRecord_.size() == 0) {
+			continue;
+		}
+		if ( (chromName == "chrX") || (chromName == "chr4") ) {
+			if (chromName[3] == fullRecord_[0]) {
+				foundChrom = true;
+				stringstream recSS(fullRecord_);
+				string field;
+				recSS >> field;
+				recSS >> field;
+				uint64_t curPos = strtoul(field.c_str(), NULL, 0);
+				if ( (curPos >= start) && (curPos <= end) ) {
+					parseCurrentRecord_();
+					sites.push_back( exportCurRecord_() );
+				}
+			} else if (foundChrom) {
+				return;
+			}
+		} else {
+			if (chromName.compare(3, 2, fullRecord_, 0, 2) == 0) {
+				foundChrom = true;
+				stringstream recSS(fullRecord_);
+				string field;
+				recSS >> field;
+				recSS >> field;
+				uint64_t curPos = strtoul(field.c_str(), NULL, 0);
+				if ( (curPos >= start) && (curPos <= end) ) {
+					parseCurrentRecord_();
+					sites.push_back( exportCurRecord_() );
+				}
+			} else if (foundChrom) {
+				return;
+			}
+		}
+	}
+}
+
+//void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites){
+//
+//}
+
+void ParseVCF::parseCurrentRecord_(){
 	// we have a non-empty line, presumably a VCF record
-	stringstream metaSS(curLine);
+	stringstream metaSS(fullRecord_);
 	vector<string> fields;
 	string value;
 	while(metaSS >> value){ // makes sure we don't have anything extra at the end
 		fields.push_back(value);
-	}
-	if (fields[0] != "2L" || fields[0] != "2R" || fields[0] != "3L" || fields[0] != "3R" || fields[0] != "4" || fields[0] != "X") {
-		this->getNextRecord_(); // recursively move to the next valid record
-		return;
-	} else if ( (fields[3].size() != 1) || (fields[4].size() != 1) ) { // likely an indel (not a SNP)
-		this->getNextRecord_(); // recursively move to the next valid record
-		return;
 	}
 
 	varPos_  = strtoul(fields[1].c_str(), NULL, 0);
@@ -116,6 +164,8 @@ void ParseVCF::getNextRecord_(){
 			refAC_ = strtoul(info.c_str()+3, NULL, 0);
 		} else if (info.compare(0, 2, "AF") == 0) {
 			refAF_ = strtod(info.c_str()+3, NULL);
+		} else if (info.compare(0, 2, "AN") == 0) {
+			numCalled_ = strtoul(info.c_str()+3, NULL, 0);
 		} else if (info.compare(0, 5, "MLEAC") == 0) {
 			refMLAC_ = strtoul(info.c_str()+6, NULL, 0);
 		} else if (info.compare(0, 5, "MLEAF") == 0) {
@@ -123,6 +173,42 @@ void ParseVCF::getNextRecord_(){
 		}
 	}
 	// Now find the ancestral state if we can
+	string outInfo;
+	axtObj_.getOutgroupState(chrID_, varPos_, outInfo);
+	if (outInfo[0] == 'N') {
+		ancState_ = 'u';
+		sameChr_  = 0;
+		outQual_  = 0;
+	} else {
+		ancState_ = outInfo[0];
+		outInfo[1] == 1 ? outQual_ = 1 : outQual_ = 0;
+		outInfo[2] == 1 ? sameChr_ = 1 : sameChr_ = 0;
+	}
 }
 
+string ParseVCF::exportCurRecord_(){
+	stringstream siteInfo;
+	siteInfo << chrID_ << "\t";
+	siteInfo << varPos_ << "\t";
+	siteInfo << refID_ << "\t";
+	siteInfo << altID_ << "\t";
+	siteInfo << ancState_ << "\t";
+	if (ancState_ == 'a') {
+		siteInfo << numCalled_ - refAC_ << "\t";
+		siteInfo << numCalled_ - refMLAC_ << "\t";
+		siteInfo << 1.0 - refAF_ << "\t";
+		siteInfo << 1.0 - refMLAF_ << "\t";
+	} else {
+		siteInfo << refAC_ << "\t";
+		siteInfo << refMLAC_ << "\t";
+		siteInfo << refAF_ << "\t";
+		siteInfo << refMLAF_ << "\t";
+	}
+	siteInfo << numMissing_ << "\t";
+	siteInfo << sameChr_ << "\t";
+	siteInfo << outQual_ << "\t";
+	siteInfo << quality_;
+
+	return siteInfo.str();
+}
 
