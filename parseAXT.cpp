@@ -1,5 +1,5 @@
 /*
- * Copyright (c) <YEAR> Anthony J. Greenberg
+ * Copyright (c) 2019 Anthony J. Greenberg
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  *
@@ -36,8 +36,6 @@
 #include <cctype>
 #include <system_error>
 
-#include <iostream>
-
 #include "parseAXT.hpp"
 
 using std::fstream;
@@ -53,7 +51,7 @@ using std::bad_alloc;
 
 using namespace BayesicSpace;
 
-ParseAXT::ParseAXT(const string &fileName) : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""}, foundChr_{""} {
+ParseAXT::ParseAXT(const string &fileName) : sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, chrID_{""}, primarySeq_{""}, alignSeq_{""}, foundChr_{""} {
 	if( axtFile_.is_open() ){
 		axtFile_.close();
 	}
@@ -66,6 +64,23 @@ ParseAXT::ParseAXT(const string &fileName) : chrID_{""}, sameChr_{0}, primarySta
 	}
 
 	getNextRecord_();
+}
+ParseAXT &ParseAXT::operator=(ParseAXT &&in){
+	if(&in != this){
+		axtFile_      = move(in.axtFile_);
+		sameChr_      = in.sameChr_;
+		primaryStart_ = in.primaryStart_;
+		primaryEnd_   = in.primaryEnd_;
+		alignedStart_ = in.alignedStart_;
+		alignedEnd_   = in.alignedEnd_;
+		chrID_        = move(in.chrID_);
+		primarySeq_   = move(in.primarySeq_);
+		alignSeq_     = move(in.alignSeq_);
+		foundChr_     = move(in.foundChr_);
+
+	}
+
+	return(*this);
 }
 
 string ParseAXT::getMetaData(){

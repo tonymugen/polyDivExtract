@@ -1,5 +1,5 @@
 /*
- * Copyright (c) <YEAR> Anthony J. Greenberg
+ * Copyright (c) 2019 Anthony J. Greenberg
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  *
@@ -50,7 +50,7 @@ namespace BayesicSpace {
 	class ParseAXT {
 		public:
 			/** \brief Default constructor */
-			ParseAXT() : chrID_{""}, sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, primarySeq_{""}, alignSeq_{""}, foundChr_{""} { axtFile_.exceptions(fstream::badbit); };
+			ParseAXT() : sameChr_{0}, primaryStart_{0}, primaryEnd_{0}, alignedStart_{0}, alignedEnd_{0}, chrID_{""}, primarySeq_{""}, alignSeq_{""}, foundChr_{""} { axtFile_.exceptions(fstream::badbit); };
 			/** \brief File name constructor
 			 *
 			 * Initializes the file stream and loads first AXT record.
@@ -65,11 +65,11 @@ namespace BayesicSpace {
 			/// Copy constructor
 			ParseAXT(const ParseAXT &in) = delete;
 			/// Move constructor
-			ParseAXT(ParseAXT &&in) = delete;
+			ParseAXT(ParseAXT &&in) : axtFile_{move(in.axtFile_)}, sameChr_{in.sameChr_}, primaryStart_{in.primaryStart_}, primaryEnd_{in.primaryEnd_}, alignedStart_{in.alignedStart_}, alignedEnd_{in.alignedEnd_}, chrID_{move(in.chrID_)}, primarySeq_{move(in.primarySeq_)}, alignSeq_{move(in.alignSeq_)}, foundChr_{move(in.foundChr_)} {};
 			/// Copy assignment
 			ParseAXT &operator=(const ParseAXT &in) = delete;
 			/// Move assignment
-			ParseAXT &operator=(ParseAXT &&in) = delete;
+			ParseAXT &operator=(ParseAXT &&in);
 
 			/** \brief Record meta data
 			 *
@@ -98,7 +98,7 @@ namespace BayesicSpace {
 			/** \brief Get list of divergent sites from a range
 			 *
 			 * Get a list of divergent sites from a range of positions on a chromosome. Sites that are not covered or align to gaps are not counted in computing the overall length.
-			 * The vector of sites is appended by the function, so any exsiting information will be preserved.
+			 * The vector of sites is appended by the function, so any existing information will be preserved.
 			 * The site description is in a tab-delimited string with the following fields:
 			 *
 			 * - chromosome name
@@ -123,7 +123,7 @@ namespace BayesicSpace {
 			 * Get a list of divergent sites from a vector of positions. The provided vector of cromosome names must be the same length as the vector of genome positions.
 			 * The chromosome names must be arranged in contiguous blocks, with the same order as in the target .axt file. This is to speed up file traversal.
 			 * Sites that are not covered or align to gaps are not counted in computing the overall length.
-			 * The vector of sites is appended by the function, so any exsiting information will be preserved.
+			 * The vector of sites is appended by the function, so any existing information will be preserved.
 			 * The site description is in a tab-delimited string with the following fields:
 			 *
 			 * - chromosome name
@@ -145,8 +145,6 @@ namespace BayesicSpace {
 			fstream axtFile_;
 
 			// variables for the current record
-			/// Primary chromosome
-			string chrID_;
 			/// Is the aligned chromosome the same (1 for yes, 0 for no)?
 			uint16_t sameChr_;
 			/// Primary start position
@@ -157,6 +155,8 @@ namespace BayesicSpace {
 			uint64_t alignedStart_;
 			/// Aligned end position
 			uint64_t alignedEnd_;
+			/// Primary chromosome
+			string chrID_;
 			/// Current record's primary sequence
 			string primarySeq_;
 			/// Current record's aligning sequence
