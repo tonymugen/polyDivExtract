@@ -93,6 +93,39 @@ void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, cons
 		return;
 	}
 	bool foundChrom = false; // keep track if the target chromosome was found in the search; needed to test if we looked though the whole thing without finding our site(s)
+
+	// process first record (already loaded at construction and guaranteed non-empty)
+	if ( (chromName == "chrX") || (chromName == "chr4") ) {
+		if (chromName[3] == fullRecord_[0]) {
+			foundChrom = true;
+			stringstream recSS(fullRecord_);
+			string field;
+			recSS >> field;
+			recSS >> field;
+			uint64_t curPos = strtoul(field.c_str(), NULL, 0);
+			if ( (curPos >= start) && (curPos <= end) ) {
+				parseCurrentRecord_();
+				sites.push_back( exportCurRecord_() );
+			}
+		} else if (foundChrom) {
+			return;
+		}
+	} else {
+		if (chromName.compare(3, 2, fullRecord_, 0, 2) == 0) {
+			foundChrom = true;
+			stringstream recSS(fullRecord_);
+			string field;
+			recSS >> field;
+			recSS >> field;
+			uint64_t curPos = strtoul(field.c_str(), NULL, 0);
+			if ( (curPos >= start) && (curPos <= end) ) {
+				parseCurrentRecord_();
+				sites.push_back( exportCurRecord_() );
+			}
+		} else if (foundChrom) {
+			return;
+		}
+	}
 	while(getline(vcfFile_, fullRecord_)){
 		if (fullRecord_.size() == 0) {
 			continue;
@@ -151,6 +184,7 @@ void ParseVCF::parseCurrentRecord_(){
 	quality_ = strtod(fields[5].c_str(), NULL);
 
 	// count missing data; would be a bit faster to start from fields[9], but the overhead should be small at the expense of the better for loop
+	numMissing_ = 0;
 	for (auto &s : fields) {
 		if (s == "./.") {
 			numMissing_++;
@@ -180,9 +214,9 @@ void ParseVCF::parseCurrentRecord_(){
 		sameChr_  = 0;
 		outQual_  = 0;
 	} else {
-		ancState_ = outInfo[0];
-		outInfo[1] == 1 ? outQual_ = 1 : outQual_ = 0;
-		outInfo[2] == 1 ? sameChr_ = 1 : sameChr_ = 0;
+		ancState_ = (outInfo[0] == refID_ ? 'r' : 'a');
+		outQual_  = (outInfo[1] == '1' ? 1 : 0);
+		sameChr_  = (outInfo[2] == '1' ? 1 : 0);
 	}
 }
 
