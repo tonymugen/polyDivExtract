@@ -7,15 +7,15 @@
 CXX = g++
 AXTOBJ = parseAXT.o
 VCFOBJ = parseVCF.o
-TSTOUT = test
 DIVSITES = divSites
+POLYSITES = polySites
 CXXFLAGS = -O3 -march=native -std=c++11
 
-all : $(DIVSITES) $(TSTOUT)
+all : $(DIVSITES) $(POLYSITES)
 .PHONY : all
 
-$(TSTOUT) : test.cpp $(AXTOBJ) $(VCFOBJ)
-	$(CXX) test.cpp $(AXTOBJ) $(VCFOBJ) -o $(TSTOUT) $(CXXFLAGS)
+$(POLYSITES) : polySites.cpp utilities.hpp $(AXTOBJ) $(VCFOBJ)
+	$(CXX) polySites.cpp $(AXTOBJ) $(VCFOBJ) -o $(POLYSITES) $(CXXFLAGS)
 
 $(DIVSITES) : divSites.cpp utilities.hpp $(AXTOBJ)
 	$(CXX) divSites.cpp $(AXTOBJ) -o $(DIVSITES) $(CXXFLAGS)
@@ -28,5 +28,5 @@ $(VCFOBJ) : parseAXT.cpp parseAXT.hpp parseVCF.cpp parseVCF.hpp
 
 .PHONY : clean
 clean:
-	-rm *.o $(TSTOUT) $(DIVSITES)
+	-rm *.o $(POLYSITES) $(DIVSITES)
 

@@ -17,17 +17,18 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/// Extract diverged sites
+/// Extract polymorphic sites
 /** \file
  * \author Anthony J. Greenberg
  * \copyright Copyright (c) 2019 Anthony J. Greenberg
  * \version 0.1
  *
- * Extracts divergent sites from MSL complex peak ranges and the four-fold silent site file list. The divergence is either to _D. simulans_ or _D. yakuba_.
+ * Extracts polymorphic sites from MSL complex peak ranges and the four-fold silent site file list. Outgroups for ancestral state determination is either _D. simulans_ or _D. yakuba_.
  * The flags are:
  *
  * -q query file name (binding locations or four-fold sites)
- * -a .axt file name
+ * -a .axt file name (for the outgroup)
+ * -v VCF file name
  * -o output file name
  *
  */
@@ -40,7 +41,7 @@
 #include <sstream>
 #include <cctype>
 
-#include "parseAXT.hpp"
+#include "parseVCF.hpp"
 #include "utilities.hpp"
 
 using namespace BayesicSpace;
@@ -65,11 +66,13 @@ int main(int argc, char *argv[]){
 			throw string("Must specify .axt file with flag -a");
 		} else if ( clInfo['q'].empty() ) {
 			throw string("Must specify input file with flag -q");
+		}  else if ( clInfo['v'].empty() ) {
+			throw string("Must specify input file with flag -q");
 		} else if ( clInfo['o'].empty() ) {
 			throw string("Must specify output file name with flag -o");
 		}
 
-		ParseAXT axt(clInfo['a']);
+		ParseVCF vcf(clInfo['v'], clInfo['a']);
 
 		if (clInfo['q'].find("fourFold.tsv") != string::npos) {  // found the signature of the four-fold silent site file
 			string qLine;
@@ -95,22 +98,16 @@ int main(int argc, char *argv[]){
 			}
 			queryFile.close();
 
-			vector<string> divergedSites;
-			unordered_map<string, uint64_t> lengths;
-			axt.getDivergedSites(chrNams, positions, divergedSites, lengths);
+			vector<string> polySites;
+			vcf.getPolySites(chrNams, positions, polySites);
 
 			fstream outFile;
 			outFile.open(clInfo['o'].c_str(), ios::out | ios::trunc);
 
-			// first put meta-data (total number of good sites) in commented lines at the beginning of the file
-			for (auto &c : lengths) {
-				outFile << "#\t" << c.first << "\t" << c.second << endl;
-			}
-
-			// now output the results
-			outFile << "chr\tposition\tprNuc\talNuc\tsameCHR\tgoodQual" << endl;
-			for (auto &ds : divergedSites) {
-				outFile << ds << endl;
+			// output the results
+			outFile << "CHR\tPOS\tREF\tALT\tANC\tAC\tMLAC\tAF\tMLAF\tNMISS\tSAME_CHR\tOUTQUAL\tSITEQUAL" << endl;
+			for (auto &ps : polySites) {
+				outFile << ps << endl;
 			}
 			outFile.close();
 		} else {
@@ -121,7 +118,7 @@ int main(int argc, char *argv[]){
 
 			fstream outFile;
 			outFile.open(clInfo['o'].c_str(), ios::out | ios::trunc);
-			outFile << "peakID\trealLen\tchr\tposition\tprNuc\talNuc\tsameCHR\tgoodQual" << endl;
+			outFile << "PEAK_ID\tCHR\tPOS\tREF\tALT\tANC\tAC\tMLAC\tAF\tMLAF\tNMISS\tSAME_CHR\tOUTQUAL\tSITEQUAL" << endl;
 
 			uint32_t peakID = 1;
 			while( getline(queryFile, qLine) ){
@@ -135,11 +132,10 @@ int main(int argc, char *argv[]){
 				if (fields.size() != 5) {
 					throw string("Peak files should have five fields");
 				}
-				uint64_t length = 0;
-				vector<string> divergedSites;
-				axt.getDivergedSites(fields[0], strtoul(fields[1].c_str(), NULL, 0), strtoul(fields[2].c_str(), NULL, 0), divergedSites, length);
-				for (auto &ds : divergedSites) {
-					outFile << "P" << peakID << "\t" << length << "\t" << ds << endl;
+				vector<string> polySites;
+				vcf.getPolySites(fields[0], strtoul(fields[1].c_str(), NULL, 0), strtoul(fields[2].c_str(), NULL, 0), polySites);
+				for (auto &ps : polySites) {
+					outFile << "P" << peakID << "\t" << ps << endl;
 				}
 				peakID++;
 			}
