@@ -59,7 +59,7 @@ namespace BayesicSpace {
 			 *
 			 */
 			ParseVCF(const string &vcfFileName, const string &axtFileName);
-			
+
 			/** \brief Destructor */
 			~ParseVCF() { if(vcfFile_.is_open()) vcfFile_.close(); };
 			/// Copy constructor

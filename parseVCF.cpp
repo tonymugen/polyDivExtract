@@ -94,79 +94,118 @@ void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, cons
 	}
 	bool foundChrom = false; // keep track if the target chromosome was found in the search; needed to test if we looked though the whole thing without finding our site(s)
 
+	stringstream recSS(fullRecord_);
+	string curChr;
+	recSS >> curChr;
+	curChr = "chr" + curChr;
 	// process first record (already loaded at construction and guaranteed non-empty)
-	if ( (chromName == "chrX") || (chromName == "chr4") ) {
-		if (chromName[3] == fullRecord_[0]) {
-			foundChrom = true;
-			stringstream recSS(fullRecord_);
-			string field;
-			recSS >> field;
-			recSS >> field;
-			uint64_t curPos = strtoul(field.c_str(), NULL, 0);
-			if ( (curPos >= start) && (curPos <= end) ) {
-				parseCurrentRecord_();
-				sites.push_back( exportCurRecord_() );
-			}
-		} else if (foundChrom) {
+	if (chromName == curChr) {
+		foundChrom = true;
+		string curPosStr;
+		recSS >> curPosStr;
+		uint64_t curPos = strtoul(curPosStr.c_str(), NULL, 0);
+		if ( (curPos >= start) && (curPos <= end) ) {
+			parseCurrentRecord_();
+			sites.push_back( exportCurRecord_() );
+		} else if (curPos > end) { // went past the end; done
 			return;
 		}
-	} else {
-		if (chromName.compare(3, 2, fullRecord_, 0, 2) == 0) {
-			foundChrom = true;
-			stringstream recSS(fullRecord_);
-			string field;
-			recSS >> field;
-			recSS >> field;
-			uint64_t curPos = strtoul(field.c_str(), NULL, 0);
-			if ( (curPos >= start) && (curPos <= end) ) {
-				parseCurrentRecord_();
-				sites.push_back( exportCurRecord_() );
-			}
-		} else if (foundChrom) {
-			return;
-		}
+	} else if (foundChrom) {
+		foundChr_ = curChr;
+		return;
 	}
 	while(getline(vcfFile_, fullRecord_)){
 		if (fullRecord_.size() == 0) {
 			continue;
 		}
-		if ( (chromName == "chrX") || (chromName == "chr4") ) {
-			if (chromName[3] == fullRecord_[0]) {
-				foundChrom = true;
-				stringstream recSS(fullRecord_);
-				string field;
-				recSS >> field;
-				recSS >> field;
-				uint64_t curPos = strtoul(field.c_str(), NULL, 0);
-				if ( (curPos >= start) && (curPos <= end) ) {
-					parseCurrentRecord_();
-					sites.push_back( exportCurRecord_() );
-				}
-			} else if (foundChrom) {
+		recSS.str(fullRecord_);
+		recSS >> curChr;
+		curChr = "chr" + curChr;
+		// process first record (already loaded at construction and guaranteed non-empty)
+		if (chromName == curChr) {
+			foundChrom = true;
+			string curPosStr;
+			recSS >> curPosStr;
+			uint64_t curPos = strtoul(curPosStr.c_str(), NULL, 0);
+			if ( (curPos >= start) && (curPos <= end) ) {
+				parseCurrentRecord_();
+				sites.push_back( exportCurRecord_() );
+			} else if (curPos > end) { // went past the end; done
 				return;
 			}
-		} else {
-			if (chromName.compare(3, 2, fullRecord_, 0, 2) == 0) {
-				foundChrom = true;
-				stringstream recSS(fullRecord_);
-				string field;
-				recSS >> field;
-				recSS >> field;
-				uint64_t curPos = strtoul(field.c_str(), NULL, 0);
-				if ( (curPos >= start) && (curPos <= end) ) {
-					parseCurrentRecord_();
-					sites.push_back( exportCurRecord_() );
-				}
-			} else if (foundChrom) {
-				return;
-			}
+		} else if (foundChrom) {
+			foundChr_ = curChr;
+			return;
 		}
 	}
 }
 
-//void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites){
-//
-//}
+void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint64_t> &positions, vector<string> &sites){
+	if (positions.size() != chromNames.size()) {
+		stringstream wrongThing;
+		wrongThing << "ERROR: the vector of chromosome names (size = ";
+		wrongThing << chromNames.size();
+		wrongThing << ") not the same size as the vector of positions (size = ";
+		wrongThing << positions.size();
+		wrongThing << ") in getDivergedSites()";
+		throw wrongThing.str();
+	}
+	for (size_t i = 0; i < positions.size(); ++i) {
+		if (chromNames[i] == foundChr_) { // if the current chromosome has been completed, keep going (maybe more chromosomes to look at)
+			continue;
+		}
+		bool foundChrom = false;
+		// first exmine already existing fullRecord_ since the previous processes (including the constructor) already pre-loaded it
+		stringstream recSS(fullRecord_);
+		string curChr;
+		recSS >> curChr;
+		curChr = "chr" + curChr;
+		if (chromNames[i] == curChr) {
+			foundChrom = true;
+			string curPosStr;
+			recSS >> curPosStr;
+			uint64_t curPos = strtoul(curPosStr.c_str(), NULL, 0);
+			if (curPos == positions[i]) {
+				parseCurrentRecord_();
+				sites.push_back( exportCurRecord_() );
+			} else if (curPos > positions[i]) { // went past the current position; do the next one
+				continue;
+			}
+		} else if (foundChrom) {
+			foundChr_  = chromNames[i]; // we are on a new chromosome, past the previous one
+			foundChrom = false;
+			continue;
+		}
+		while(getline(vcfFile_, fullRecord_)){
+			if (fullRecord_.size() == 0) {
+				continue;
+			}
+			if (chromNames[i] == foundChr_) {
+				break;
+			}
+			recSS.str(fullRecord_);
+			recSS >> curChr;
+			curChr = "chr" + curChr;
+			if (chromNames[i] == curChr) {
+				foundChrom = true;
+				string curPosStr;
+				recSS >> curPosStr;
+				uint64_t curPos = strtoul(curPosStr.c_str(), NULL, 0);
+				if (curPos == positions[i]) {
+					parseCurrentRecord_();
+					sites.push_back( exportCurRecord_() );
+					break;
+				} else if (curPos > positions[i]) { // went past the current position; do the next one
+					break;
+				}
+			} else if (foundChrom) {
+				foundChr_  = chromNames[i]; // we are on a new chromosome, past the previous one
+				foundChrom = false;
+				break;
+			}
+		}
+	}
+}
 
 void ParseVCF::parseCurrentRecord_(){
 	// we have a non-empty line, presumably a VCF record
