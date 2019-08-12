@@ -49,7 +49,7 @@ namespace BayesicSpace {
 	class ParseVCF {
 		public:
 			/** \brief Default constructor */
-			ParseVCF() : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, numCalled_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, foundChr_{""}, fullRecord_{""} { vcfFile_.exceptions(fstream::badbit); };
+			ParseVCF() : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, numCalled_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, completeChr_{""}, fullRecord_{""} { vcfFile_.exceptions(fstream::badbit); };
 			/** \brief Constructor with file names
 			 *
 			 * Opens the VCF file and the corresponding .axt alignment file for ancestral state tracking.
@@ -166,7 +166,7 @@ namespace BayesicSpace {
 			/// Chromosome ID
 			string chrID_;
 			/// Last completely searched chromosome
-			string foundChr_;
+			string completeChr_;
 			/// The full VCF line (record)
 			string fullRecord_;
 

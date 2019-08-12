@@ -50,7 +50,7 @@ using std::bad_alloc;
 using namespace BayesicSpace;
 
 
-ParseVCF::ParseVCF(const string &vcfFileName, const string &axtFileName) : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, numCalled_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, foundChr_{""}, fullRecord_{""} {
+ParseVCF::ParseVCF(const string &vcfFileName, const string &axtFileName) : varPos_{0}, refID_{'\0'}, altID_{'\0'}, ancState_{'u'}, outQual_{0}, sameChr_{0}, numMissing_{0}, numCalled_{0}, refAC_{0}, refMLAC_{0}, refAF_{0.0}, refMLAF_{0.0}, quality_{0.0}, chrID_{""}, completeChr_{""}, fullRecord_{""} {
 	if( vcfFile_.is_open() ){
 		vcfFile_.close();
 	}
@@ -89,7 +89,7 @@ void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, cons
 		wrongThing << ") in getPolySites()";
 		throw wrongThing.str();
 	}
-	if (chromName == foundChr_) {
+	if (chromName == completeChr_) {
 		return;
 	}
 	bool foundChrom = false; // keep track if the target chromosome was found in the search; needed to test if we looked though the whole thing without finding our site(s)
@@ -111,7 +111,8 @@ void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, cons
 			return;
 		}
 	} else if (foundChrom) {
-		foundChr_ = curChr;
+		completeChr_ = chromName;
+		foundChrom   = false;
 		return;
 	}
 	while(getline(vcfFile_, fullRecord_)){
@@ -134,7 +135,8 @@ void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, cons
 				return;
 			}
 		} else if (foundChrom) {
-			foundChr_ = curChr;
+			completeChr_ = chromName;
+			foundChrom   = false;
 			return;
 		}
 	}
@@ -151,7 +153,7 @@ void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint6
 		throw wrongThing.str();
 	}
 	for (size_t i = 0; i < positions.size(); ++i) {
-		if (chromNames[i] == foundChr_) { // if the current chromosome has been completed, keep going (maybe more chromosomes to look at)
+		if (chromNames[i] == completeChr_) { // if the current chromosome has been completed, keep going (maybe more chromosomes to look at)
 			continue;
 		}
 		bool foundChrom = false;
@@ -172,7 +174,7 @@ void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint6
 				continue;
 			}
 		} else if (foundChrom) {
-			foundChr_  = chromNames[i]; // we are on a new chromosome, past the previous one
+			completeChr_  = chromNames[i]; // we are on a new chromosome, past the previous one
 			foundChrom = false;
 			continue;
 		}
@@ -180,7 +182,7 @@ void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint6
 			if (fullRecord_.size() == 0) {
 				continue;
 			}
-			if (chromNames[i] == foundChr_) {
+			if (chromNames[i] == completeChr_) {
 				break;
 			}
 			recSS.str(fullRecord_);
@@ -199,7 +201,7 @@ void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint6
 					break;
 				}
 			} else if (foundChrom) {
-				foundChr_  = chromNames[i]; // we are on a new chromosome, past the previous one
+				completeChr_  = chromNames[i]; // we are on a new chromosome, past the previous one
 				foundChrom = false;
 				break;
 			}
