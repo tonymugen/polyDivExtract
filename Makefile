@@ -9,10 +9,14 @@ AXTOBJ = parseAXT.o
 VCFOBJ = parseVCF.o
 DIVSITES = divSites
 POLYSITES = polySites
+SORT = fastaSort
 CXXFLAGS = -O3 -march=native -std=c++11
 
-all : $(DIVSITES) $(POLYSITES)
+all : $(DIVSITES) $(POLYSITES) $(SORT)
 .PHONY : all
+
+$(SORT) : fastaSort.cpp utilities.hpp
+	$(CXX) fastaSort.cpp -o $(SORT) $(CXXFLAGS)
 
 $(POLYSITES) : polySites.cpp utilities.hpp $(AXTOBJ) $(VCFOBJ)
 	$(CXX) polySites.cpp $(AXTOBJ) $(VCFOBJ) -o $(POLYSITES) $(CXXFLAGS)
@@ -28,5 +32,5 @@ $(VCFOBJ) : parseAXT.cpp parseAXT.hpp parseVCF.cpp parseVCF.hpp
 
 .PHONY : clean
 clean:
-	-rm *.o $(POLYSITES) $(DIVSITES)
+	-rm *.o $(POLYSITES) $(DIVSITES) $(SORT)
 
