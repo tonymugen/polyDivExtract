@@ -45,7 +45,6 @@ using std::vector;
 using std::map;
 using std::unordered_map;
 using std::pair;
-using std::cout;
 using std::cerr;
 using std::endl;
 using std::flush;
@@ -78,7 +77,7 @@ int main(int argc, char *argv[]){
 		if (curLine[0] == '>') { // we are at the FASTA header
 			if ( !curRecord[0].empty() ) {  // deal with the previous record (if any)
 				pair<map<uint64_t, vector<string>>::iterator, bool> successTest; // success of insertion test
-				if (curChr.compare(0, 4, "Scr_") == 0) { // soecial case of chromosome naming in the Dsim CDS FASTA file
+				if (curChr.compare(0, 4, "Scf_") == 0) { // soecial case of chromosome naming in the Dsim CDS FASTA file
 					curChr.erase(0,4);
 				}
 				if ( (curChr == "X") ||
@@ -107,7 +106,6 @@ int main(int argc, char *argv[]){
 						}
 						curChr += f;
 					}
-					cout << curChr << "; ";
 					string startPosition;
 					for (auto &c : field) {
 						if ( isdigit(c) ) {
@@ -117,7 +115,6 @@ int main(int argc, char *argv[]){
 						}
 					}
 					curPos = strtoul(startPosition.c_str(), NULL, 0);
-					cout << curPos << endl;
 				}
 			}
 		} else {
