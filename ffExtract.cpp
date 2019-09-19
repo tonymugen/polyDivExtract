@@ -54,7 +54,7 @@ using std::max;
 
 using namespace BayesicSpace;
 
-FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, chr_{""} {
+FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, end_{0}, chr_{""} {
 	if (fastaFile_.is_open()) {
 		fastaFile_.close();
 	}
@@ -67,6 +67,7 @@ FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, 
 
 	getline(fastaFile_, nextHeader_);
 	parseHeader_(positions_, chr_);
+	end_ = ( (positions_[0] < positions_.back()) ? positions_.back() : positions_[0] );
 	//getline(fastaFile_, sequence_);
 	if (sequence_.size() != positions_.size()) {
 		std::cerr << "sequence (" << sequence_.size() << ") and position (" << positions_.size() << ") lengths not equal" << endl;
@@ -74,6 +75,7 @@ FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, 
 	}
 	fstream tFS;
 	tFS.open("tstOut.tsv", ios::out|ios::trunc);
+	tFS << chr_ << " " << end_ << endl;
 	for (size_t i = 0; i < sequence_.size(); ++i) {
 		tFS << sequence_[i] << " " << positions_[i] << endl;
 	}
@@ -203,7 +205,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
 }
 
 void FFextract::getNumbers_(const string &range, uint64_t &start, uint64_t &end){
-	size_t pos = range.find_last_of('.') - 1; // assuming that the range was checked for non-empty number fields
+	size_t pos = range.find_first_of('.'); // assuming that the range was checked for non-empty number fields
 	start      = strtoul(range.substr(0, pos).c_str(), NULL, 0);
 	pos        = range.find_last_of('.') + 1;
 	end        = strtoul(range.substr(pos).c_str(), NULL, 0);
@@ -222,11 +224,33 @@ void FFextract::getNextRecord_(){
 			if (chr_ != tmpChr) {
 				break;
 			}
-			const uint64_t mNew = ( (tmpPos[0] < tmpPos.back() ) ? tmpPos[0] : tmpPos.back() );
-			if ( mNew < max( positions_[0], positions_.back() ) ) { // one nucleotide overlap is OK
+			const uint64_t sNew = ( ( tmpPos[0] < tmpPos.back() ) ? tmpPos[0] : tmpPos.back() );
+			if (sNew < end_){ // one nucleotide overlap is OK
+				// test if the CDS with the new header is completely within the previous CDS
+				const uint64_t eNew = ( ( tmpPos[0] >= tmpPos.back() ) ? tmpPos[0] : tmpPos.back() );
+				if ( eNew <= (end_ + 3) ) { // no need to bother with a single codo, it's a stop
+					if ( positions_[0] < positions_.back() ) {
+						size_t iEnd = positions_.size() - 1;
+						while ( (positions_[iEnd] > eNew) && (iEnd != 0) ){
+							iEnd--;
+						}
+						size_t iBeg = iEnd;
+						while ( (positions_[iBeg] > sNew) && (iBeg != 0) ){
+							iBeg--;
+						}
+						if (iBeg != iEnd) {
+							sequence_.erase(sequence_.begin() + iBeg - (iBeg%3), sequence_.begin() + iEnd + 3 - (iEnd%3));
+							positions_.erase(positions_.begin() + iBeg - (iBeg%3), positions_.begin() + iEnd + 3 - (iEnd%3));
+						}
+						getline(fastaFile_, curLine); // read and discard the sequence for this record; it is completely within the previous locus. Discard even if within an intron.
+						return;
+					} else {
+// complemented case
+					}
+				}
 				if ( positions_[0] < positions_.back() ) {
 					uint64_t i = positions_.size() - 1;
-					while (positions_[i] >= mNew){
+					while (positions_[i] >= sNew){
 						if (i == 0) {
 							break;
 						}
@@ -241,4 +265,5 @@ void FFextract::getNextRecord_(){
 		}
 	}
 }
+
 

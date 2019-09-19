@@ -50,7 +50,7 @@ namespace BayesicSpace {
 	class FFextract {
 	public:
 		/** \brief Default constructor */
-		FFextract() : nextHeader_{""}, sequence_{""}, chr_{""} { fastaFile_.exceptions(fstream::badbit); };
+		FFextract() : nextHeader_{""}, sequence_{""}, end_{0}, chr_{""} { fastaFile_.exceptions(fstream::badbit); };
 		/** \brief Constructor
 		 *
 		 * \param[in] fastaName name of the FASTA file
@@ -66,7 +66,7 @@ namespace BayesicSpace {
 		 *
 		 * \param[in] in the object to be moved
 		 */
-		FFextract(FFextract &&in) : fastaFile_{move(in.fastaFile_)}, nextHeader_{move(in.nextHeader_)}, sequence_{move(in.sequence_)}, positions_{move(in.positions_)}, chr_{move(in.chr_)} {};
+		FFextract(FFextract &&in) : fastaFile_{move(in.fastaFile_)}, nextHeader_{move(in.nextHeader_)}, sequence_{move(in.sequence_)}, positions_{move(in.positions_)}, end_{in.end_}, chr_{move(in.chr_)} {};
 		/** \brief Extract four-fold sites from the current record
 		 *
 		 * The vector of positions is appended.
@@ -89,6 +89,11 @@ namespace BayesicSpace {
 		 * The same length as `sequence_`, each element is the genome position of the nucleotide in the sequence.
 		 */
 		vector <uint64_t> positions_;
+		/** \brief Last CDS position
+		 * 
+		 * Not necessarily contained in `positions_` because of possible truncation.
+		 */
+		uint64_t end_;
 		/** \brief Current chromosome */
 		string chr_;
 		/** \brief Parse the FASTA header 
