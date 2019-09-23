@@ -34,7 +34,6 @@
 #include <cstdlib>
 #include <cctype>
 #include <system_error>
-#include <algorithm>
 
 #include <iostream>
 
@@ -49,12 +48,10 @@ using std::endl;
 using std::system_error;
 using std::ios;
 using std::bad_alloc;
-using std::min;
-using std::max;
 
 using namespace BayesicSpace;
 
-FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, end_{0}, chr_{""} {
+FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, end_{0}, chr_{""}, delStart_{0}, delLength_{0} {
 	if (fastaFile_.is_open()) {
 		fastaFile_.close();
 	}
@@ -195,7 +192,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
 					}
 				}
 			} else {
-				string error("Unkown value in position list of field ");
+				string error("Unknown value in position list of field ");
 				error += field;
 				throw error;
 			}
@@ -228,7 +225,7 @@ void FFextract::getNextRecord_(){
 			if (sNew < end_){ // one nucleotide overlap is OK
 				// test if the CDS with the new header is completely within the previous CDS
 				const uint64_t eNew = ( ( tmpPos[0] >= tmpPos.back() ) ? tmpPos[0] : tmpPos.back() );
-				if ( eNew <= (end_ + 3) ) { // no need to bother with a single codo, it's a stop
+				if ( eNew <= (end_ + 3) ) { // no need to bother with a single codon, it's a stop
 					if ( positions_[0] < positions_.back() ) {
 						size_t iEnd = positions_.size() - 1;
 						while ( (positions_[iEnd] > eNew) && (iEnd != 0) ){
@@ -245,10 +242,22 @@ void FFextract::getNextRecord_(){
 						getline(fastaFile_, curLine); // read and discard the sequence for this record; it is completely within the previous locus. Discard even if within an intron.
 						return;
 					} else {
-// complemented case
+						size_t iBeg = 0;
+						while ( (positions_[iBeg] > eNew) && (iBeg < positions_.size()) ){
+							iBeg++;
+						}
+						size_t iEnd = iBeg;
+						while ( (positions_[iEnd] > sNew) && (iEnd < positions_.size()) ){
+							iEnd++;
+						}
+						if (iBeg != iEnd) {
+							sequence_.erase(sequence_.begin() + iBeg - (iBeg%3), sequence_.begin() + iEnd + 3 - (iEnd%3));
+							positions_.erase(positions_.begin() + iBeg - (iBeg%3), positions_.begin() + iEnd + 3 - (iEnd%3));
+						}
+						getline(fastaFile_, curLine); // read and discard the sequence for this record; it is completely within the previous locus. Discard even if within an intron.
+						return;
 					}
-				}
-				if ( positions_[0] < positions_.back() ) {
+				} else if ( positions_[0] < positions_.back() ) { // there is overlap, but the next CDS is not within the new one. Have to truncate both
 					uint64_t i = positions_.size() - 1;
 					while (positions_[i] >= sNew){
 						if (i == 0) {

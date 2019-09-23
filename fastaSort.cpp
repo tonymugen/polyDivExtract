@@ -23,7 +23,7 @@
  * \copyright Copyright (c) 2019 Anthony J. Greenberg
  * \version 0.1
  *
- * Sorts a FASTA file that has a _loc=_ field in the header of each sequence by position (of the start nucleotide) within each chromosome. If records with the same position are found, the longest one is kept.
+ * Sorts a FASTA file that has a _loc=_ field in the header of each sequence by position (of the start nucleotide) within each chromosome. If records with the same position are found, the longest one is kept. If records have the same FBgn number, the longer one is kept.
  * The flags are:
  *
  * -i input file name
@@ -54,6 +54,25 @@ using std::stringstream;
 using std::ios;
 using BayesicSpace::parseCL;
 
+/** \brief Extract FBgn number
+ *
+ * Extracts the FBgn from the FASTA header.
+ *
+ * \param[in] header FASTA header
+ * \param[out] fbgn FBgn number (excludes the _FBgn_ string)
+ */
+void getFBgn(const string &header, string &fbgn){
+	stringstream hSS(header);
+	string field;
+	while (getline(hSS, field, ' ')){
+		if (field.compare(0, 7, "parent=") == 0) {
+			fbgn = field.substr(11, 7);
+			break;
+		}
+	}
+
+}
+
 int main(int argc, char *argv[]){
 	unordered_map<char, string> clInfo;
 	parseCL(argc, argv, clInfo);
@@ -77,7 +96,7 @@ int main(int argc, char *argv[]){
 		if (curLine[0] == '>') { // we are at the FASTA header
 			if ( !curRecord[0].empty() ) {  // deal with the previous record (if any)
 				pair<map<uint64_t, vector<string>>::iterator, bool> successTest; // success of insertion test
-				if (curChr.compare(0, 4, "Scf_") == 0) { // soecial case of chromosome naming in the Dsim CDS FASTA file
+				if (curChr.compare(0, 4, "Scf_") == 0) { // special case of chromosome naming in the Dsim CDS FASTA file
 					curChr.erase(0,4);
 				}
 				if ( (curChr == "X") ||
@@ -122,13 +141,31 @@ int main(int argc, char *argv[]){
 		}
 	}
 	fastaIn.close();
-	// now save the results
+	// now save the results, checking if there are duplicate FBgn; save the longest one if there are duplicates
 	fstream fastaOut;
 	fastaOut.open(clInfo['o'].c_str(), ios::out|ios::trunc);
 	for (auto &chr : outData) {
+		string prevFBgn;
+		vector<string> prevRecord(2);
+		// sorting ensures that they are one after another (except possibly in the edge case when an opposite strand ovelapping gene terminates between start sites)
 		for (auto &r : chr.second) {
-			fastaOut << r.second[0] << endl;
-			fastaOut << r.second[1] << endl;
+			if ( prevRecord[0].empty() ) { // this should be true only once (for the first record). May need optimizing.
+				getFBgn(r.second[0], prevFBgn);
+				prevRecord = move(r.second);
+			} else {
+				string curFBgn;
+				getFBgn(r.second[0], curFBgn);
+				if (curFBgn != prevFBgn) {
+					fastaOut << prevRecord[0] << endl;
+					fastaOut << prevRecord[1] << endl;
+					prevFBgn   = move(curFBgn);
+					prevRecord = move(r.second);
+				} else {
+					if (prevRecord[1].size() < r.second[1].size()) {
+						prevRecord = move(r.second);
+					}
+				}
+			}
 		}
 	}
 	fastaOut.close();

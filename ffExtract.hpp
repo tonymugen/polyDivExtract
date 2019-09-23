@@ -50,7 +50,7 @@ namespace BayesicSpace {
 	class FFextract {
 	public:
 		/** \brief Default constructor */
-		FFextract() : nextHeader_{""}, sequence_{""}, end_{0}, chr_{""} { fastaFile_.exceptions(fstream::badbit); };
+		FFextract() : nextHeader_{""}, sequence_{""}, end_{0}, chr_{""}, delStart_{0}, delLength_{0} { fastaFile_.exceptions(fstream::badbit); };
 		/** \brief Constructor
 		 *
 		 * \param[in] fastaName name of the FASTA file
@@ -66,7 +66,7 @@ namespace BayesicSpace {
 		 *
 		 * \param[in] in the object to be moved
 		 */
-		FFextract(FFextract &&in) : fastaFile_{move(in.fastaFile_)}, nextHeader_{move(in.nextHeader_)}, sequence_{move(in.sequence_)}, positions_{move(in.positions_)}, end_{in.end_}, chr_{move(in.chr_)} {};
+		FFextract(FFextract &&in) : fastaFile_{move(in.fastaFile_)}, nextHeader_{move(in.nextHeader_)}, sequence_{move(in.sequence_)}, positions_{move(in.positions_)}, end_{in.end_}, chr_{move(in.chr_)}, delStart_{in.delStart_}, delLength_{in.delLength_} {};
 		/** \brief Extract four-fold sites from the current record
 		 *
 		 * The vector of positions is appended.
@@ -96,6 +96,19 @@ namespace BayesicSpace {
 		uint64_t end_;
 		/** \brief Current chromosome */
 		string chr_;
+		/** \brief Start position of sequence truncation
+		 *
+		 * Where to start truncation of the newly-read sequence portion of the FASTA file. Saved from parsing `nextHeader_`. Is needed only if there is overlap with the previous sequence.
+		 */
+		size_t delStart_;
+		/** \brief Sequence truncation length
+		 *
+		 * Length of the new sequence region that must be deleted. Is not 0 only if there is overlap with the previous sequence.
+		 */
+		size_t delLength_;
+		/** \brief Vector of four-fold site records */
+		vector<string> ffSites_;
+
 		/** \brief Parse the FASTA header 
 		 *
 		 * Parses the next header (in `nexHeader_`).
