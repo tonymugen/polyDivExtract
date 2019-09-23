@@ -156,13 +156,25 @@ int main(int argc, char *argv[]){
 				string curFBgn;
 				getFBgn(r.second[0], curFBgn);
 				if (curFBgn != prevFBgn) {
-					fastaOut << prevRecord[0] << endl;
-					fastaOut << prevRecord[1] << endl;
-					prevFBgn   = move(curFBgn);
-					prevRecord = move(r.second);
+					if (r.first == chr.second.end()->first) { // otherwise the last record is never output
+						fastaOut << prevRecord[0] << endl;
+						fastaOut << prevRecord[1] << endl;
+						fastaOut << r.second[0] << endl;
+						fastaOut << r.second[1] << endl;
+					} else {
+						fastaOut << prevRecord[0] << endl;
+						fastaOut << prevRecord[1] << endl;
+						prevFBgn   = move(curFBgn);
+						prevRecord = move(r.second);
+					}
 				} else {
 					if (prevRecord[1].size() < r.second[1].size()) {
-						prevRecord = move(r.second);
+						if (r.first == chr.second.end()->first) {
+							fastaOut << r.second[0] << endl;
+							fastaOut << r.second[1] << endl;
+						} else {
+							prevRecord = move(r.second);
+						}
 					}
 				}
 			}
