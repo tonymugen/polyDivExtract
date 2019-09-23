@@ -23,7 +23,7 @@
  * \copyright Copyright (c) 2019 Anthony J. Greenberg
  * \version 0.1
  *
- * Sorts a FASTA file that has a _loc=_ field in the header of each sequence by position (of the start nucleotide) within each chromosome. If records with the same position are found, the longest one is kept. If records have the same FBgn number, the longer one is kept.
+ * Sorts a FASTA file that has a _loc=_ field in the header of each sequence by position (of the start nucleotide) within each chromosome. If records with the same position are found, the longest one is kept. If records have the same FBgn number, the longer one is kept. Any CDS that fall completely within another are eliminated.
  * The flags are:
  *
  * -i input file name
@@ -54,23 +54,35 @@ using std::stringstream;
 using std::ios;
 using BayesicSpace::parseCL;
 
-/** \brief Extract FBgn number
+/** \brief Extract FBgn number and last position
  *
  * Extracts the FBgn from the FASTA header.
  *
  * \param[in] header FASTA header
  * \param[out] fbgn FBgn number (excludes the _FBgn_ string)
+ * \param[out] lastPos last position in the CDS
  */
-void getFBgn(const string &header, string &fbgn){
+void getFBgnLastPos(const string &header, string &fbgn, uint64_t &lastPos){
 	stringstream hSS(header);
 	string field;
 	while (getline(hSS, field, ' ')){
 		if (field.compare(0, 7, "parent=") == 0) {
 			fbgn = field.substr(11, 7);
 			break;
+		} else if (field.compare(0, 4, "loc=") == 0) {
+			string lp;
+			for (auto fRit = field.rbegin(); fRit != field.rend(); ++fRit) {
+				if ( ((*fRit) == ';') || ((*fRit) == ')') ) {
+					continue;
+				} else if ( (*fRit) == '.' ) {
+					break;
+				} else {
+					lp = (*fRit) + lp;
+				}
+			}
+			lastPos = strtoul(lp.c_str(), NULL, 0);
 		}
 	}
-
 }
 
 int main(int argc, char *argv[]){
@@ -146,25 +158,30 @@ int main(int argc, char *argv[]){
 	fastaOut.open(clInfo['o'].c_str(), ios::out|ios::trunc);
 	for (auto &chr : outData) {
 		string prevFBgn;
+		uint64_t prevEndPos;
 		vector<string> prevRecord(2);
 		// sorting ensures that they are one after another (except possibly in the edge case when an opposite strand ovelapping gene terminates between start sites)
 		for (auto &r : chr.second) {
 			if ( prevRecord[0].empty() ) { // this should be true only once (for the first record). May need optimizing.
-				getFBgn(r.second[0], prevFBgn);
+				getFBgnLastPos(r.second[0], prevFBgn, prevEndPos);
 				prevRecord = move(r.second);
 			} else {
 				string curFBgn;
-				getFBgn(r.second[0], curFBgn);
+				uint64_t curEndPos;
+				getFBgnLastPos(r.second[0], curFBgn, curEndPos);
 				if (curFBgn != prevFBgn) {
 					if (r.first == chr.second.end()->first) { // otherwise the last record is never output
 						fastaOut << prevRecord[0] << endl;
 						fastaOut << prevRecord[1] << endl;
 						fastaOut << r.second[0] << endl;
 						fastaOut << r.second[1] << endl;
+					} else if (curEndPos <= prevEndPos) {
+						continue;
 					} else {
 						fastaOut << prevRecord[0] << endl;
 						fastaOut << prevRecord[1] << endl;
 						prevFBgn   = move(curFBgn);
+						prevEndPos = curEndPos;
 						prevRecord = move(r.second);
 					}
 				} else {
