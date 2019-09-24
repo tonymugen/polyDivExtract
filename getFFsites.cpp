@@ -28,6 +28,7 @@
  * The flags are:
  *
  * -i input file name
+ * -l log file name
  * -o output file name
  *
  */
@@ -56,8 +57,10 @@ int main(int argc, char *argv[]){
 	} else if ( clInfo['o'].empty() ) {
 		cerr << "Must specify output file name with flag -o" << endl;
 		exit(2);
+	} else if ( clInfo['l'].empty() ) {
+		cerr << "Must specify the log file name with flag -l" << endl;
 	}
-	FFextract fasta(clInfo['i']);
+	FFextract fasta(clInfo['i'], clInfo['l']);
 	exit(0);
 }
 

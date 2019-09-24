@@ -51,9 +51,12 @@ using std::bad_alloc;
 
 using namespace BayesicSpace;
 
-FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, end_{0}, chr_{""}, delStart_{0}, delLength_{0} {
+FFextract::FFextract(const string &fastaName, const string &logName) : header_{""}, sequence_{""}, end_{0}, chr_{""}, fbgn_{""}, delStart_{0}, delLength_{0} {
 	if (fastaFile_.is_open()) {
 		fastaFile_.close();
+	}
+	if (logFile_.is_open()) {
+		logFile_.close();
 	}
 	try {
 		fastaFile_.open(fastaName.c_str(), ios::in);
@@ -61,34 +64,26 @@ FFextract::FFextract(const string &fastaName) : nextHeader_{""}, sequence_{""}, 
 		string message = "ERROR: cannot open file " + fastaName + ": " + error.code().message();
 		throw message;
 	}
-
-	getline(fastaFile_, nextHeader_);
-	parseHeader_(positions_, chr_);
-	end_ = ( (positions_[0] < positions_.back()) ? positions_.back() : positions_[0] );
-	//getline(fastaFile_, sequence_);
-	if (sequence_.size() != positions_.size()) {
-		std::cerr << "sequence (" << sequence_.size() << ") and position (" << positions_.size() << ") lengths not equal" << endl;
-		exit(1);
+	try {
+		logFile_.open(logName.c_str(), ios::out|ios::trunc);
+	} catch(system_error &error) {
+		string message = "ERROR: cannot open file " + logName + ": " + error.code().message();
+		throw message;
 	}
-	fstream tFS;
-	tFS.open("tstOut.tsv", ios::out|ios::trunc);
-	tFS << chr_ << " " << end_ << endl;
-	for (size_t i = 0; i < sequence_.size(); ++i) {
-		tFS << sequence_[i] << " " << positions_[i] << endl;
-	}
-	tFS.close();
-	//getNextRecord_();
 }
 
 FFextract::~FFextract(){
 	if (fastaFile_.is_open()) {
 		fastaFile_.close();
 	}
+	if (logFile_.is_open()) {
+		logFile_.close();
+	}
 }
 
-void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
+void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr, string &fbgn){
 	positions.clear();
-	stringstream hSS(nextHeader_);
+	stringstream hSS(header_);
 	string field;
 	while( getline(hSS, field, ' ') ){
 		if (field.compare(0, 3, "loc") == 0) {
@@ -121,7 +116,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
 			if (isdigit(field[0])) { // only one exon, no complement
 				if (field.size() <= 2) {
 					string error("Cannot parse postion range in header\n");
-					error += nextHeader_;
+					error += header_;
 					error += "\n";
 					throw error;
 				}
@@ -130,7 +125,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
 				getNumbers_(field, start, end);
 				if (start >= end) {
 					string error("Start position is not before the end position in header ");
-					error += nextHeader_;
+					error += header_;
 					error += "\n";
 					throw error;
 				}
@@ -163,7 +158,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
 						getNumbers_(*rIt, start, end);
 						if (start >= end) {
 							string error("Start position is not before the end position in header ");
-							error += nextHeader_;
+							error += header_;
 							error += "\n";
 							throw error;
 						}
@@ -180,7 +175,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
 						getNumbers_(*it, start, end);
 						if (start >= end) {
 							string error("Start position is not before the end position in header ");
-							error += nextHeader_;
+							error += header_;
 							error += "\n";
 							throw error;
 						}
@@ -196,6 +191,8 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr){
 				error += field;
 				throw error;
 			}
+		} else if (field.compare(0, 7, "parent=") == 0) {
+			fbgn = field.substr(11, 7);
 			break;
 		}
 	}
@@ -209,68 +206,299 @@ void FFextract::getNumbers_(const string &range, uint64_t &start, uint64_t &end)
 }
 
 void FFextract::getNextRecord_(){
-	// first header already read on construction
 	string curLine;
 	sequence_.clear();
 	while(getline(fastaFile_, curLine)){
 		if (curLine[0] == '>') {
-			vector<uint64_t> tmpPos;
-			string tmpChr;
-			nextHeader_ = move(curLine);
-			parseHeader_(tmpPos, tmpChr);
-			if (chr_ != tmpChr) {
-				break;
+			header_ = move(curLine);
+			vector<uint64_t> curPos;
+			string curChr;
+			string curFBgn;
+			parseHeader_(curPos, curChr, curFBgn);
+			if (curChr != chr_) { // new chromosome; no need to check for overlap
+				logFile_ << "Switched from chromosome " << chr_ << " to " << curChr << " at FBgn" << curFBgn << endl;
+				getFFsites_(); // extracting from the previous record
+				positions_ = move(curPos);
+				end_       = ( ( positions_[0] < positions_.back() ) ? positions_.back() : positions_[0] );
+				chr_       = move(curChr);
+				fbgn_      = move(curFBgn);
+				delLength_ = 0;
+				continue;
+			} else if ( positions_.empty() ) {
+				logFile_ << "Previous record empty at FBgn" << curFBgn << endl;
+				positions_ = move(curPos);
+				end_       = ( ( positions_[0] < positions_.back() ) ? positions_.back() : positions_[0] );
+				chr_       = move(curChr);
+				fbgn_      = move(curFBgn);
+				delLength_ = 0;
+				continue;
 			}
-			const uint64_t sNew = ( ( tmpPos[0] < tmpPos.back() ) ? tmpPos[0] : tmpPos.back() );
-			if (sNew < end_){ // one nucleotide overlap is OK
-				// test if the CDS with the new header is completely within the previous CDS
-				const uint64_t eNew = ( ( tmpPos[0] >= tmpPos.back() ) ? tmpPos[0] : tmpPos.back() );
-				if ( eNew <= (end_ + 3) ) { // no need to bother with a single codon, it's a stop
-					if ( positions_[0] < positions_.back() ) {
-						size_t iEnd = positions_.size() - 1;
-						while ( (positions_[iEnd] > eNew) && (iEnd != 0) ){
-							iEnd--;
+			if ( curPos[0] < curPos.back() ) { // current CDS not complemented
+				if (curPos[0] < end_) { // there is overlap
+					logFile_ << "Detected overlap between " << fbgn_ << " and " << curFBgn << endl;
+					if ( positions_[0] < positions_.back() ) { // previous CDS not complemented, either
+						delLength_ = 0;
+						for (auto pRit = positions_.rbegin(); pRit != positions_.rend(); ++pRit) {
+							if ( (*pRit) >= curPos[0] ) {
+								delLength_++;
+							} else {
+								break;
+							}
 						}
-						size_t iBeg = iEnd;
-						while ( (positions_[iBeg] > sNew) && (iBeg != 0) ){
-							iBeg--;
+						delLength_ = delLength_ + (delLength_%3);
+						if ( (delLength_ < positions_.size()) && (delLength_ < curPos.size()) ) { // delLength_ can be larger than these because of the rounding to codons
+							delStart_  = positions_.size() - delLength_;
+							positions_.resize(positions_.size() - delLength_);
+							sequence_.resize(sequence_.size() - delLength_);
+							getFFsites_();
+							curPos.erase(curPos.begin(), curPos.begin()+delLength_);
+							positions_ = move(curPos);
+							end_       = positions_.back();
+							chr_       = move(curChr);
+							fbgn_      = move(curFBgn);
+							continue;
+						} else if ( delLength_ >= positions_.size() ) {
+							if ( delLength_ >= curPos.size() ) {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << ", which is also deleted" << endl;
+								// do not extract FF sites, do not move the current fields
+								delStart_ = 0;
+								positions_.clear();
+								sequence_.clear();
+								continue;
+							} else {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << endl;
+								// do not extract FF sites
+								delStart_ = curPos.size() - delLength_;
+								curPos.erase(curPos.begin(), curPos.begin()+delLength_);
+								positions_ = move(curPos);
+								end_       = positions_.back();
+								chr_       = move(curChr);
+								fbgn_      = move(curFBgn);
+								continue;
+							}
+						} else {
+							logFile_ << fbgn_ << " deletes the overlapping " << curFBgn << endl;
+							// extract sites, but do not move the new position info (chromosome and FBgn info is moved)
+							positions_.resize(positions_.size() - delLength_);
+							sequence_.resize(sequence_.size() - delLength_);
+							getFFsites_();
+							positions_.clear();
+							delStart_ = 0;
+							end_      = 0;
+							chr_      = move(curChr);
+							fbgn_     = move(curFBgn);
+							continue;
 						}
-						if (iBeg != iEnd) {
-							sequence_.erase(sequence_.begin() + iBeg - (iBeg%3), sequence_.begin() + iEnd + 3 - (iEnd%3));
-							positions_.erase(positions_.begin() + iBeg - (iBeg%3), positions_.begin() + iEnd + 3 - (iEnd%3));
+					} else { // previous CDS complemented
+						delLength_ = 0;
+						for (auto pIt = positions_.begin(); pIt != positions_.end(); ++pIt) {
+							if ( (*pIt) >= curPos[0] ) {
+								delLength_++;
+							} else {
+								break;
+							}
 						}
-						getline(fastaFile_, curLine); // read and discard the sequence for this record; it is completely within the previous locus. Discard even if within an intron.
-						return;
-					} else {
-						size_t iBeg = 0;
-						while ( (positions_[iBeg] > eNew) && (iBeg < positions_.size()) ){
-							iBeg++;
+						delLength_ = delLength_ + (delLength_%3);
+						delStart_  = 0;
+						if ( (delLength_ < positions_.size()) && (delLength_ < curPos.size()) ) { // delLength_ can be larger than these because of the rounding to codons
+							positions_.erase(positions_.begin(), positions_.begin() + delLength_);
+							sequence_.erase(0, delLength_);
+							getFFsites_();
+							curPos.erase(curPos.begin(), curPos.begin()+delLength_);
+							positions_ = move(curPos);
+							end_       = positions_.back();
+							chr_       = move(curChr);
+							fbgn_      = move(curFBgn);
+							continue;
+						} else if ( delLength_ >= positions_.size() ) {
+							if ( delLength_ >= curPos.size() ) {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << ", which is also deleted" << endl;
+								// do not extract FF sites, do not move the current fields
+								positions_.clear();
+								sequence_.clear();
+								continue;
+							} else {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << endl;
+								// do not extract FF sites
+								curPos.erase(curPos.begin(), curPos.begin()+delLength_);
+								positions_ = move(curPos);
+								end_       = positions_.back();
+								chr_       = move(curChr);
+								fbgn_      = move(curFBgn);
+								continue;
+							}
+						} else {
+							logFile_ << fbgn_ << " deletes the overlapping " << curFBgn << endl;
+							// extract sites, but do not move the new position info (chromosome and FBgn info is moved)
+							positions_.erase(positions_.begin(), positions_.begin() + delLength_);
+							sequence_.erase(0, delLength_);
+							getFFsites_();
+							positions_.clear();
+							end_  = 0;
+							chr_  = move(curChr);
+							fbgn_ = move(curFBgn);
+							continue;
 						}
-						size_t iEnd = iBeg;
-						while ( (positions_[iEnd] > sNew) && (iEnd < positions_.size()) ){
-							iEnd++;
-						}
-						if (iBeg != iEnd) {
-							sequence_.erase(sequence_.begin() + iBeg - (iBeg%3), sequence_.begin() + iEnd + 3 - (iEnd%3));
-							positions_.erase(positions_.begin() + iBeg - (iBeg%3), positions_.begin() + iEnd + 3 - (iEnd%3));
-						}
-						getline(fastaFile_, curLine); // read and discard the sequence for this record; it is completely within the previous locus. Discard even if within an intron.
-						return;
 					}
-				} else if ( positions_[0] < positions_.back() ) { // there is overlap, but the next CDS is not within the new one. Have to truncate both
-					uint64_t i = positions_.size() - 1;
-					while (positions_[i] >= sNew){
-						if (i == 0) {
-							break;
+				} else { // no overlap
+					getFFsites_();
+					positions_ = move(curPos);
+					end_       = positions_.back();
+					chr_       = move(curChr);
+					fbgn_      = move(curFBgn);
+					delLength_ = 0;
+					continue;
+				}
+			} else { // current CDS complemented
+				if (curPos.back() < end_) { // there is overlap
+					logFile_ << "Detected overlap between " << fbgn_ << " and " << curFBgn << endl;
+					if ( positions_[0] < positions_.back() ) { // previous CDS not complemented, either
+						delLength_ = 0;
+						for (auto pRit = positions_.rbegin(); pRit != positions_.rend(); ++pRit) {
+							if ( (*pRit) >= curPos.back() ) {
+								delLength_++;
+							} else {
+								break;
+							}
 						}
-						i--;
+						delLength_ = delLength_ + (delLength_%3);
+						if ( (delLength_ < positions_.size()) && (delLength_ < curPos.size()) ) { // delLength_ can be larger than these because of the rounding to codons
+							delStart_  = positions_.size() - delLength_;
+							positions_.resize(positions_.size() - delLength_);
+							sequence_.resize(sequence_.size() - delLength_);
+							getFFsites_();
+							curPos.resize(curPos.size() - delLength_);
+							positions_ = move(curPos);
+							end_       = positions_[0];
+							chr_       = move(curChr);
+							fbgn_      = move(curFBgn);
+							continue;
+						} else if ( delLength_ >= positions_.size() ) {
+							if ( delLength_ >= curPos.size() ) {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << ", which is also deleted" << endl;
+								// do not extract FF sites, do not move the current fields
+								delStart_ = 0;
+								positions_.clear();
+								sequence_.clear();
+								continue;
+							} else {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << endl;
+								// do not extract FF sites
+								curPos.resize(curPos.size() - delLength_);
+								delStart_  = curPos.size() - delLength_;
+								positions_ = move(curPos);
+								end_       = positions_[0];
+								chr_       = move(curChr);
+								fbgn_      = move(curFBgn);
+								continue;
+							}
+						} else {
+							logFile_ << fbgn_ << " deletes the overlapping " << curFBgn << endl;
+							// extract sites, but do not move the new position info (chromosome and FBgn info is moved)
+							positions_.resize(positions_.size() - delLength_);
+							sequence_.resize(sequence_.size() - delLength_);
+							getFFsites_();
+							positions_.clear();
+							delStart_ = 0;
+							end_      = 0;
+							chr_      = move(curChr);
+							fbgn_     = move(curFBgn);
+							continue;
+						}
+					} else { // previous CDS complemented
+						delLength_ = 0;
+						for (auto pIt = positions_.begin(); pIt != positions_.end(); ++pIt) {
+							if ( (*pIt) >= curPos.back() ) {
+								delLength_++;
+							} else {
+								break;
+							}
+						}
+						delLength_ = delLength_ + (delLength_%3);
+						delStart_  = 0;
+						if ( (delLength_ < positions_.size()) && (delLength_ < curPos.size()) ) { // delLength_ can be larger than these because of the rounding to codons
+							positions_.erase(positions_.begin(), positions_.begin() + delLength_);
+							sequence_.erase(0, delLength_);
+							getFFsites_();
+							curPos.resize(curPos.size() - delLength_);
+							positions_ = move(curPos);
+							end_       = positions_[0];
+							chr_       = move(curChr);
+							fbgn_      = move(curFBgn);
+							continue;
+						} else if ( delLength_ >= positions_.size() ) {
+							if ( delLength_ >= curPos.size() ) {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << ", which is also deleted" << endl;
+								// do not extract FF sites, do not move the current fields
+								positions_.clear();
+								sequence_.clear();
+								continue;
+							} else {
+								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << endl;
+								// do not extract FF sites
+								curPos.resize(curPos.size() - delLength_);
+								positions_ = move(curPos);
+								end_       = positions_[0];
+								chr_       = move(curChr);
+								fbgn_      = move(curFBgn);
+								continue;
+							}
+						} else {
+							logFile_ << fbgn_ << " deletes the overlapping " << curFBgn << endl;
+							// extract sites, but do not move the new position info (chromosome and FBgn info is moved)
+							positions_.erase(positions_.begin(), positions_.begin() + delLength_);
+							sequence_.erase(0, delLength_);
+							getFFsites_();
+							positions_.clear();
+							end_  = 0;
+							chr_  = move(curChr);
+							fbgn_ = move(curFBgn);
+							continue;
+						}
 					}
-
+				} else { // no overlap
+					getFFsites_();
+					positions_ = move(curPos);
+					end_       = positions_[0];
+					chr_       = move(curChr);
+					fbgn_      = move(curFBgn);
+					delLength_ = 0;
+					continue;
 				}
 			}
-			break;
 		} else {
+			if ( positions_.empty() ) {
+				break; // sequence_ would already have been emptied
+			} else if (delLength_) {
+				curLine.erase(delStart_, delLength_);
+			}
 			sequence_ = move(curLine);
+			break;
+		}
+	}
+}
+
+void FFextract::getFFsites_(){
+	for (size_t i = 0; i < sequence_.size(); i += 3) {
+		string codon = sequence_.substr(i, 3);
+		if (codon[1] == 'A') { // no codons with A in second position have four-fold sites
+			continue;
+		} else if (codon[1] == 'T') {
+			if ( (codon[0] == 'C') || (codon[0] == 'G') ) {
+				stringstream rSS(ios::out);
+				rSS << chr_ << "\t" << fbgn_ << "\t" << positions_[i+3] << "\n";
+				ffSites_.push_back( rSS.str() );
+			}
+		} else if (codon[1] == 'C') { // all codons with C in second position are four-fold
+			stringstream rSS(ios::out);
+			rSS << chr_ << "\t" << fbgn_ << "\t" << positions_[i+3] << "\n";
+			ffSites_.push_back( rSS.str() );
+		} else { // G
+			if ( (codon[0] == 'C') || (codon[0] == 'G') ) {
+				stringstream rSS(ios::out);
+				rSS << chr_ << "\t" << fbgn_ << "\t" << positions_[i+3] << "\n";
+				ffSites_.push_back( rSS.str() );
+			}
 		}
 	}
 }
