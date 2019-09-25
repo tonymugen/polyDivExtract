@@ -81,6 +81,13 @@ FFextract::~FFextract(){
 	}
 }
 
+void FFextract::extractFFsites(vector<string> &positionList){
+	while ( !fastaFile_.eof() ){
+		getNextRecord_();
+	}
+	positionList = move(ffSites_);
+}
+
 void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr, string &fbgn){
 	positions.clear();
 	stringstream hSS(header_);
@@ -479,6 +486,7 @@ void FFextract::getNextRecord_(){
 }
 
 void FFextract::getFFsites_(){
+	vector<string> locSites;
 	for (size_t i = 0; i < sequence_.size(); i += 3) {
 		string codon = sequence_.substr(i, 3);
 		if (codon[1] == 'A') { // no codons with A in second position have four-fold sites
@@ -487,17 +495,28 @@ void FFextract::getFFsites_(){
 			if ( (codon[0] == 'C') || (codon[0] == 'G') ) {
 				stringstream rSS(ios::out);
 				rSS << chr_ << "\t" << fbgn_ << "\t" << positions_[i+3] << "\n";
-				ffSites_.push_back( rSS.str() );
+				locSites.push_back( rSS.str() );
 			}
 		} else if (codon[1] == 'C') { // all codons with C in second position are four-fold
 			stringstream rSS(ios::out);
 			rSS << chr_ << "\t" << fbgn_ << "\t" << positions_[i+3] << "\n";
-			ffSites_.push_back( rSS.str() );
+			locSites.push_back( rSS.str() );
 		} else { // G
 			if ( (codon[0] == 'C') || (codon[0] == 'G') ) {
 				stringstream rSS(ios::out);
 				rSS << chr_ << "\t" << fbgn_ << "\t" << positions_[i+3] << "\n";
-				ffSites_.push_back( rSS.str() );
+				locSites.push_back( rSS.str() );
+			}
+		}
+	}
+	if ( locSites.size() ) {
+		if ( positions_[0] < positions_.back() ) {
+			for (auto &l : locSites) {
+				ffSites_.push_back(move(l));
+			}
+		} else {
+			for (auto lRit = locSites.rbegin(); lRit != locSites.rend(); ++lRit) {
+				ffSites_.push_back(move(*lRit));
 			}
 		}
 	}

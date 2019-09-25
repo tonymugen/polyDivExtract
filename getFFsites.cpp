@@ -37,6 +37,7 @@
 #include <vector>
 #include <unordered_map>
 #include <iostream>
+#include <fstream>
 
 #include "utilities.hpp"
 #include "ffExtract.hpp"
@@ -45,6 +46,8 @@ using std::vector;
 using std::unordered_map;
 using std::cerr;
 using std::endl;
+using std::fstream;
+using std::ios;
 
 using namespace BayesicSpace;
 
@@ -60,7 +63,22 @@ int main(int argc, char *argv[]){
 	} else if ( clInfo['l'].empty() ) {
 		cerr << "Must specify the log file name with flag -l" << endl;
 	}
-	FFextract fasta(clInfo['i'], clInfo['l']);
+	try {
+		FFextract fasta(clInfo['i'], clInfo['l']);
+		vector<string> out;
+		fasta.extractFFsites(out);
+		fstream oFS;
+		oFS.open(clInfo['o'].c_str(), ios::out|ios::trunc);
+		oFS << "chr\tFBgn\tpos" << endl;
+		for (auto &r : out) {
+			oFS << r << endl;
+		}
+		oFS.close();
+
+	} catch(string error) {
+		cerr << error << endl;
+		exit(1);
+	}
 	exit(0);
 }
 

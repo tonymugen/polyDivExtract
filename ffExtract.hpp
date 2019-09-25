@@ -71,11 +71,11 @@ namespace BayesicSpace {
 		FFextract(FFextract &&in) : fastaFile_{move(in.fastaFile_)}, logFile_{move(in.logFile_)}, header_{move(in.header_)}, sequence_{move(in.sequence_)}, positions_{move(in.positions_)}, end_{in.end_}, chr_{move(in.chr_)}, fbgn_{move(in.fbgn_)}, delStart_{in.delStart_}, delLength_{in.delLength_} {};
 		/** \brief Extract four-fold sites from the current record
 		 *
-		 * The vector of positions is appended.
+		 * The vector of positions contains tab-delimited fields: chromosome, FBgn number, and position. The contents of the vector are replaced.
 		 *
-		 * \param[out] positionList vector of four-fold site positions
+		 * \param[out] positionList vector of four-fold site positions.
 		 */
-		void extractFFsites(vector<uint64_t> &positionList);
+		void extractFFsites(vector<string> &positionList);
 	private:
 		/** \brief FASTA file to be parsed */
 		fstream fastaFile_;
