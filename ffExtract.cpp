@@ -35,8 +35,6 @@
 #include <cctype>
 #include <system_error>
 
-#include <iostream>
-
 #include "ffExtract.hpp"
 
 using std::fstream;
@@ -138,7 +136,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr, string &f
 				uint64_t start;
 				uint64_t end;
 				getNumbers_(field, start, end);
-				if (start >= end) {
+				if (start > end) {
 					string error("Start position is not before the end position in header ");
 					error += header_;
 					error += "\n";
@@ -171,7 +169,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr, string &f
 						uint64_t start;
 						uint64_t end;
 						getNumbers_(*rIt, start, end);
-						if (start >= end) {
+						if (start > end) {
 							string error("Start position is not before the end position in header ");
 							error += header_;
 							error += "\n";
@@ -188,7 +186,7 @@ void FFextract::parseHeader_(vector<uint64_t> &positions, string &chr, string &f
 						uint64_t start;
 						uint64_t end;
 						getNumbers_(*it, start, end);
-						if (start >= end) {
+						if (start > end) {
 							string error("Start position is not before the end position in header ");
 							error += header_;
 							error += "\n";
@@ -407,9 +405,9 @@ void FFextract::getNextRecord_(){
 							positions_.resize(positions_.size() - prevDelLength);
 							sequence_.resize(sequence_.size() - prevDelLength);
 							getFFsites_();
+							delStart_  = curPos.size() - delLength_;
 							curPos.resize(curPos.size() - delLength_);
 							positions_ = move(curPos);
-							delStart_  = positions_.size() - delLength_;
 							end_       = positions_[0];
 							chr_       = move(curChr);
 							fbgn_      = move(curFBgn);
@@ -469,9 +467,9 @@ void FFextract::getNextRecord_(){
 							positions_.erase(positions_.begin(), positions_.begin() + prevDelLength);
 							sequence_.erase(0, prevDelLength);
 							getFFsites_();
+							delStart_  = curPos.size() - delLength_;
 							curPos.resize(curPos.size() - delLength_);
 							positions_ = move(curPos);
-							delStart_  = positions_.size() - delLength_;
 							end_       = positions_[0];
 							chr_       = move(curChr);
 							fbgn_      = move(curFBgn);
@@ -486,9 +484,9 @@ void FFextract::getNextRecord_(){
 							} else {
 								logFile_ << fbgn_ << " deleted by overlapping " << curFBgn << endl;
 								// do not extract FF sites
+								delStart_  = curPos.size() - delLength_;
 								curPos.resize(curPos.size() - delLength_);
 								positions_ = move(curPos);
-								delStart_  = positions_.size() - delLength_;
 								end_       = positions_[0];
 								chr_       = move(curChr);
 								fbgn_      = move(curFBgn);
