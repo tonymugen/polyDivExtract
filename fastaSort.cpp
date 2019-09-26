@@ -191,6 +191,7 @@ int main(int argc, char *argv[]){
 							fastaOut << r.second[1] << endl;
 						} else {
 							prevRecord = move(r.second);
+							prevEndPos = curEndPos;
 						}
 					}
 				}
