@@ -74,7 +74,7 @@ int main(int argc, char *argv[]){
 
 		ParseVCF vcf(clInfo['v'], clInfo['a']);
 
-		if (clInfo['q'].find("fourFold.tsv") != string::npos) {  // found the signature of the four-fold silent site file
+		if (clInfo['q'].find("_ff") != string::npos) {  // found the signature of the four-fold silent site file
 			string qLine;
 			vector<string> chrNams;
 			vector<uint64_t> positions;
