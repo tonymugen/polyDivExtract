@@ -4,7 +4,9 @@
 #
 #################################################
 
-CXX = g++
+CXX ?= g++
+INSTALLDIR = /usr/local
+
 AXTOBJ = parseAXT.o
 VCFOBJ = parseVCF.o
 FFOBJ = ffExtract.o
@@ -16,6 +18,13 @@ CXXFLAGS = -O3 -march=native -std=c++11
 
 all : $(DIVSITES) $(POLYSITES) $(SORT) $(GFFS)
 .PHONY : all
+
+install : $(DIVSITES) $(POLYSITES) $(SORT) $(GFFS)
+	-cp -v $(DIVSITES) $(INSTALLDIR)/bin
+	-cp -v $(POLYSITES) $(INSTALLDIR)/bin
+	-cp -v $(SORT) $(INSTALLDIR)/bin
+	-cp -v $(GFFS) $(INSTALLDIR)/bin
+.PHONY : install
 
 $(GFFS) : getFFsites.cpp utilities.hpp $(FFOBJ)
 	$(CXX) getFFsites.cpp $(FFOBJ) -o $(GFFS) $(CXXFLAGS)

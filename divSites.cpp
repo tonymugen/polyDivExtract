@@ -80,7 +80,6 @@ int main(int argc, char *argv[]){
 			queryFile.open(clInfo['q'].c_str(), ios::in);
 
 			while( getline(queryFile, qLine) ){
-				//getline(queryFile, qLine);
 				stringstream lnSS(qLine);
 				vector<string> fields;
 				string value;
@@ -132,8 +131,8 @@ int main(int argc, char *argv[]){
 				while(lnSS >> value){
 					fields.push_back(value);
 				}
-				if (fields.size() != 5) {
-					throw string("Peak files should have five fields");
+				if (fields.size() < 3) {
+					throw string("Peak files should have at least three fields");
 				}
 				uint64_t length = 0;
 				vector<string> divergedSites;

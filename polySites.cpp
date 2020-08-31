@@ -122,15 +122,14 @@ int main(int argc, char *argv[]){
 
 			uint32_t peakID = 1;
 			while( getline(queryFile, qLine) ){
-				//getline(queryFile, qLine);
 				stringstream lnSS(qLine);
 				vector<string> fields;
 				string value;
 				while(lnSS >> value){
 					fields.push_back(value);
 				}
-				if (fields.size() != 5) {
-					throw string("Peak files should have five fields");
+				if (fields.size() < 3) {
+					throw string("Peak files should have at least three fields");
 				}
 				vector<string> polySites;
 				vcf.getPolySites(fields[0], strtoul(fields[1].c_str(), NULL, 0), strtoul(fields[2].c_str(), NULL, 0), polySites);
