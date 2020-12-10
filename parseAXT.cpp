@@ -44,10 +44,8 @@ using std::stringstream;
 using std::string;
 using std::vector;
 using std::unordered_map;
-using std::endl;
 using std::system_error;
 using std::ios;
-using std::bad_alloc;
 
 using namespace BayesicSpace;
 
@@ -111,6 +109,9 @@ void ParseAXT::getDivergedSites(const string &chromName, const uint64_t &start, 
 		throw wrongThing.str();
 	}
 	length = 0;
+	if ( sites.size() ){
+		sites.clear();
+	}
 	for (uint64_t iSite = start; iSite <= end; iSite++) {
 		// if the current chromosome has already been explored to the end, no need to bother looking
 		if (chromName == foundChr_) {
@@ -270,8 +271,12 @@ void ParseAXT::getNextRecord_(){
 		throw string("Wrong number of fields in .axt metada");
 	}
 	if ( (fields[1][0] != 'c') || (fields[1][1] != 'h') || (fields[1][2] != 'r') ) { // do not have "chr" at the beginning of the chromosome field
-		string wrongThing = "Wrong chromosome field: " + fields[1];
-		throw wrongThing;
+		if ( (fields[1][0] != 'X') || (fields[1][0] != '2') || (fields[1][0] != '3') || (fields[1][0] != '4') ){
+			string wrongThing = "Wrong chromosome field: " + fields[1];
+			throw wrongThing;
+		} else {
+			fields[1] = "chr" + fields[1];
+		}
 	}
 	string tmpChrID = chrID_;
 	chrID_ = fields[1];
@@ -300,8 +305,12 @@ void ParseAXT::getNextRecord_(){
 	}
 
 	if ( (fields[4][0] != 'c') || (fields[4][1] != 'h') || (fields[4][2] != 'r') ) { // do not have "chr" at the beginning of the chromosome field
-		string wrongThing = "Wrong aligned chromosome field: " + fields[4];
-		throw wrongThing;
+		if ( (fields[4][0] != 'X') || (fields[4][0] != '2') || (fields[4][0] != '3') || (fields[4][0] != '4') ){
+			string wrongThing = "Wrong aligned chromosome field: " + fields[4];
+			throw wrongThing;
+		} else {
+			fields[4] = "chr" + fields[4];
+		}
 	}
 	sameChr_ = (fields[4] == fields[1] ? 1 : 0);
 
@@ -381,7 +390,7 @@ void ParseAXT::getSiteStates_(const string &chromosome, const uint64_t &position
 	}
 	if (noneFound) {
 		stringstream wrongThing;
-		wrongThing << "Reached the end of file before finding a record for postition ";
+		wrongThing << "Reached the end of file before finding a record for positition ";
 		wrongThing << position;
 		wrongThing << " on chromosome ";
 		wrongThing << chromosome;

@@ -20,10 +20,10 @@ all : $(DIVSITES) $(POLYSITES) $(SORT) $(GFFS)
 .PHONY : all
 
 install : $(DIVSITES) $(POLYSITES) $(SORT) $(GFFS)
-	-cp -v $(DIVSITES) $(INSTALLDIR)/bin
-	-cp -v $(POLYSITES) $(INSTALLDIR)/bin
-	-cp -v $(SORT) $(INSTALLDIR)/bin
-	-cp -v $(GFFS) $(INSTALLDIR)/bin
+	-cp $(DIVSITES) $(INSTALLDIR)/bin
+	-cp $(POLYSITES) $(INSTALLDIR)/bin
+	-cp $(SORT) $(INSTALLDIR)/bin
+	-cp $(GFFS) $(INSTALLDIR)/bin
 .PHONY : install
 
 $(GFFS) : getFFsites.cpp utilities.hpp $(FFOBJ)

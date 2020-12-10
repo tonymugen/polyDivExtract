@@ -42,10 +42,8 @@ using std::ofstream;
 using std::stringstream;
 using std::string;
 using std::vector;
-using std::endl;
 using std::system_error;
 using std::ios;
-using std::bad_alloc;
 
 using namespace BayesicSpace;
 
@@ -97,7 +95,9 @@ void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, cons
 	stringstream recSS(fullRecord_);
 	string curChr;
 	recSS >> curChr;
-	curChr = "chr" + curChr;
+	if (curChr.size() <= 2){
+		curChr = "chr" + curChr;
+	}
 	// process first record (already loaded at construction and guaranteed non-empty)
 	if (chromName == curChr) {
 		foundChrom = true;
@@ -121,7 +121,9 @@ void ParseVCF::getPolySites(const string &chromName, const uint64_t &start, cons
 		}
 		recSS.str(fullRecord_);
 		recSS >> curChr;
-		curChr = "chr" + curChr;
+		if (curChr.size() <= 2){
+			curChr = "chr" + curChr;
+		}
 		// process first record (already loaded at construction and guaranteed non-empty)
 		if (chromName == curChr) {
 			foundChrom = true;
@@ -161,7 +163,9 @@ void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint6
 		stringstream recSS(fullRecord_);
 		string curChr;
 		recSS >> curChr;
-		curChr = "chr" + curChr;
+		if (curChr.size() <= 2){
+			curChr = "chr" + curChr;
+		}
 		if (chromNames[i] == curChr) {
 			foundChrom = true;
 			string curPosStr;
@@ -187,7 +191,9 @@ void ParseVCF::getPolySites(const vector<string> &chromNames, const vector<uint6
 			}
 			recSS.str(fullRecord_);
 			recSS >> curChr;
-			curChr = "chr" + curChr;
+			if (curChr.size() <= 2){
+				curChr = "chr" + curChr;
+			}
 			if (chromNames[i] == curChr) {
 				foundChrom = true;
 				string curPosStr;

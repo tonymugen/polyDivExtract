@@ -46,10 +46,8 @@
 using namespace BayesicSpace;
 using std::vector;
 using std::unordered_map;
-using std::cout;
 using std::cerr;
 using std::endl;
-using std::flush;
 using std::fstream;
 using std::ofstream;
 using std::stringstream;
@@ -71,15 +69,44 @@ int main(int argc, char *argv[]){
 
 		ParseAXT axt(clInfo['a']);
 
-		if (clInfo['q'].find("_ff") != string::npos) {  // found the signature of the four-fold silent site file
-			string qLine;
-			vector<string> chrNams;
-			vector<uint64_t> positions;
+		string qLine;
+		vector<string> chrNams;
+		vector<uint64_t> positions;
 
-			fstream queryFile;
-			queryFile.open(clInfo['q'].c_str(), ios::in);
+		fstream queryFile;
+		queryFile.open(clInfo['q'].c_str(), ios::in);
 
+		// process first uncommented non-empty line and see how many fields we are dealing with
+		while ( getline(queryFile, qLine) ) {
+			if ( qLine.size() && (qLine[0] != '#') ){
+				break;
+			}
+		}
+		if ( queryFile.eof() ){
+			queryFile.close();
+			throw string("Query file has no uncommented non-empty lines");
+		}
+		stringstream firstLnSS(qLine);
+		vector<string> fields;
+		string firstValue;
+		while(firstLnSS >> firstValue){
+			fields.push_back(firstValue);
+		}
+		if (fields.size() < 2) {
+			queryFile.close();
+			throw string("Query file should have at least two white-space separated fields");
+		} else if (fields.size() == 2){ // positions file
+			if ( isdigit(fields[1][0]) ){
+				if (fields[0].size() <= 2){
+					fields[0] = "chr" + fields[0];
+				}
+				chrNams.push_back(fields[0]);
+				positions.push_back( strtoul(fields[1].c_str(), NULL, 0) );
+			}
 			while( getline(queryFile, qLine) ){
+				if ( qLine.empty() || (qLine[0] == '#') ){
+					continue;
+				}
 				stringstream lnSS(qLine);
 				vector<string> fields;
 				string value;
@@ -87,7 +114,16 @@ int main(int argc, char *argv[]){
 					fields.push_back(value);
 				}
 				if (fields.size() != 2) {
-					throw string("Four-fold file should have two fields");
+					queryFile.close();
+					string error = "Line " + qLine + " does not have two fields in a positions query file";
+					throw error;
+				} else if ( !isdigit(fields[1][0]) ){
+					queryFile.close();
+					string error = fields[1] + " is not a numerical value in the position field";
+					throw error;
+				}
+				if (fields[0].size() <= 2){
+					fields[0] = "chr" + fields[0];
 				}
 				chrNams.push_back(fields[0]);
 				positions.push_back( strtoul(fields[1].c_str(), NULL, 0) );
@@ -112,30 +148,50 @@ int main(int argc, char *argv[]){
 				outFile << ds << endl;
 			}
 			outFile.close();
-		} else {
-			string qLine;
-
-			fstream queryFile;
-			queryFile.open(clInfo['q'].c_str(), ios::in);
-
+		} else { // ranges file
 			fstream outFile;
 			outFile.open(clInfo['o'].c_str(), ios::out | ios::trunc);
 			outFile << "peakID\trealLen\tchr\tposition\tprNuc\talNuc\tsameCHR\tgoodQual" << endl;
 
 			uint32_t peakID = 1;
+			vector<string> divergedSites;
+			uint64_t length = 0;
+			if ( isdigit(fields[1][0]) && isdigit(fields[2][0]) ){
+				if (fields[0].size() <= 2){
+					fields[0] = "chr" + fields[0];
+				}
+				chrNams.push_back(fields[0]);
+				positions.push_back( strtoul(fields[1].c_str(), NULL, 0) );
+				axt.getDivergedSites(fields[0], strtoul(fields[1].c_str(), NULL, 0), strtoul(fields[2].c_str(), NULL, 0), divergedSites, length);
+				for (auto &ds : divergedSites) {
+					outFile << "P" << peakID << "\t" << length << "\t" << ds << endl;
+				}
+				peakID++;
+			}
 			while( getline(queryFile, qLine) ){
-				//getline(queryFile, qLine);
 				stringstream lnSS(qLine);
+				if ( qLine.empty() || (qLine[0] == '#') ){
+					continue;
+				}
 				vector<string> fields;
 				string value;
 				while(lnSS >> value){
 					fields.push_back(value);
 				}
 				if (fields.size() < 3) {
-					throw string("Peak files should have at least three fields");
+					outFile.close();
+					queryFile.close();
+					string error = "Line " + qLine + " has fewer than three fields in a ranges query file";
+					throw error;
+				} else if ( !isdigit(fields[1][0]) || !isdigit(fields[2][0]) ){
+					outFile.close();
+					queryFile.close();
+					string error = "Field " + fields[1] + " or " + fields[2] + " is not numeric in the ranges query file";
+					throw error;
 				}
-				uint64_t length = 0;
-				vector<string> divergedSites;
+				if (fields[0].size() <= 2){
+					fields[0] = "chr" + fields[0];
+				}
 				axt.getDivergedSites(fields[0], strtoul(fields[1].c_str(), NULL, 0), strtoul(fields[2].c_str(), NULL, 0), divergedSites, length);
 				for (auto &ds : divergedSites) {
 					outFile << "P" << peakID << "\t" << length << "\t" << ds << endl;
@@ -145,9 +201,10 @@ int main(int argc, char *argv[]){
 			queryFile.close();
 			outFile.close();
 		}
-
+		exit(0);
 	} catch(string error) {
 		cerr << error << endl;
+		exit(1);
 	}
 }
 

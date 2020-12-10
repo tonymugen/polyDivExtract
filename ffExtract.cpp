@@ -45,7 +45,6 @@ using std::vector;
 using std::endl;
 using std::system_error;
 using std::ios;
-using std::bad_alloc;
 
 using namespace BayesicSpace;
 
